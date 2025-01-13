@@ -145,8 +145,8 @@ If you used ideas or code from pixelSplat and would like to be featured here, se
 @inproceedings{charatan23pixelsplat,
       title={pixelSplat: 3D Gaussian Splats from Image Pairs for Scalable Generalizable 3D Reconstruction},
       author={David Charatan and Sizhe Li and Andrea Tagliasacchi and Vincent Sitzmann},
-      year={2023},
-      booktitle={arXiv},
+      year={2024},
+      booktitle={CVPR},
 }
 ```
 
