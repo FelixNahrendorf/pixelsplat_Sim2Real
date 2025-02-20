@@ -28,7 +28,7 @@ from .view_sampler import ViewSampler, ViewSamplerCfg
 from .dataset_readers import readPixelSplatCamera
 from ..misc.general_utils import img_path_to_Torch, depth_path_to_Torch
 
-CARLA_DATASET_ROOT = '/app/data/theo_Town02/' # Change this to your data directory
+CARLA_DATASET_ROOT = '/app/data/seed4d/static/' # Change this to your data directory 
 assert CARLA_DATASET_ROOT is not None, "Update the location of the CARLA Dataset"
 
 LIDAR_DATASET_ROOT = '/app/new/pseudo_lidar/' # Will be directory to save pseudo lidar 
