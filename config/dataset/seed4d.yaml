@@ -1,0 +1,16 @@
+name: seed4d
+
+defaults:
+  - train_view_sampler: train_carla_view
+  - eval_view_sampler: eval_carla_view
+
+background_color: [1.0, 1.0, 1.0]
+
+max_fov: 110.0
+z_near: 0.007
+z_far: 70.0
+
+# We will differentiate between input and output image shapes
+# and will transform intrinsics matrices correspondingly
+# as we are working with tensors of consistent resolutions, it is
+# better to setup context&target views to the same resolution

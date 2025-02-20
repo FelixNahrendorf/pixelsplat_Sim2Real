@@ -11,19 +11,42 @@ from pathlib import Path
 
 def readPixelSplatCamera(transform_path, resolution = None, near = 0.0, far = 70.0):
     # first read the transforms file for cameras
-    with open(transform_path, 'r') as f: jsonData = json.load(f)
-    # we are going to assume that images will have square shape with
-    # side length equal to the width of the original image and constant focal length
-    intrinsic_normal_fl_x = jsonData['fl_x'] * (resolution / jsonData['w'])
-    intrinsic_normal_fl_y = jsonData['fl_y'] * (resolution / jsonData['h'])
-    
+    with open(transform_path, 'r') as f: 
+        jsonData = json.load(f)
+    print('Checkpoint LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL  transform_path:', transform_path)
     image_paths = []
     pose_bounds = []
     base_image_dir = transform_path[:transform_path.rfind('/', 0, transform_path.rfind('/'))]
-    
+    print('Checkpoint IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII base_image_dir', base_image_dir)
+    print('Checkpoint HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH jsonData[frames]', jsonData['frames'])
     for frame_dicts in jsonData['frames']:
-        frame_image_path = base_image_dir + '/' + frame_dicts['file_path'][2:]
+        print ('Checkpoint GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG frame_dicts:', frame_dicts)
+        #frame_image_path = base_image_dir + '/' + frame_dicts['file_path'][2:]
+        frame_image_path = base_image_dir + frame_dicts['file_path'][2:]
+        frame_image_path = (base_image_dir + frame_dicts['file_path'][2:]).replace("images", "sensors")
+        print('Checkpoint KKKKKKKKKKKKKKKKKKKK frame_dicts[file_path][:],frame_dicts[file_path][2:]', frame_dicts['file_path'][:],frame_dicts['file_path'][2:])
+        print(f"Checkpoint EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE Reading image: {frame_image_path}")
         image_paths.append(frame_image_path)
+        print(f"Checkpoint FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF path image: {image_paths}")
+        # Handle different JSON formats for camera intrinsics
+        # Check if intrinsics are stored per-frame (new format) or at root level (old format)
+        if 'fl_x' in frame_dicts:
+            # New format: intrinsics stored per frame
+            fl_x = frame_dicts['fl_x']
+            fl_y = frame_dicts['fl_y']
+            w = frame_dicts['w']
+            h = frame_dicts['h']
+        else:
+            # Old format: intrinsics stored at root level
+            fl_x = jsonData['fl_x']
+            fl_y = jsonData['fl_y']
+            w = jsonData['w']
+            h = jsonData['h']
+        
+        # Calculate normalized focal lengths based on resolution
+        intrinsic_normal_fl_x = fl_x * (resolution / w)
+        intrinsic_normal_fl_y = fl_y * (resolution / h)
+        
         # Carla cameras are camera-to-world transforms
         # need to change from Carla camera axes (x right, y up, z back)
         # to the COLMAP format (x right, y down, z forward)
@@ -41,6 +64,3 @@ def readPixelSplatCamera(transform_path, resolution = None, near = 0.0, far = 70
     pose_bounds = torch.from_numpy(np.stack(pose_bounds))
     extrinsics_matrices, intrinsics_matrices = load_metadata(pose_bounds)
     return image_paths, intrinsics_matrices, extrinsics_matrices
-
-    
-    

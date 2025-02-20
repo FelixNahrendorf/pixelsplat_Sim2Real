@@ -29,12 +29,12 @@ from .dataset_readers import readPixelSplatCamera
 from ..misc.general_utils import img_path_to_Torch, depth_path_to_Torch
 
 SEED4D_DATASET_ROOT = '/app/data/seed4d/static/' # Change this to your data directory 
-assert SEED4D_DATASET_ROOT is None, "Update the location of the SEED4D Dataset"
+assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
 
 LIDAR_DATASET_ROOT = '/app/new/seed4d/pseudo_lidar/' # Will be directory to save pseudo lidar 
 
 @dataclass
-class Dataset_CARLACfg(DatasetCfgCommon):
+class Dataset_SEED4DCfg(DatasetCfgCommon):
     name: Literal["seed4d"]
     train_view_sampler: ViewSamplerCfg
     eval_view_sampler: ViewSamplerCfg
@@ -43,17 +43,17 @@ class Dataset_CARLACfg(DatasetCfgCommon):
     z_far: float
     training_towns: List[str] = None  # Add training towns configuration
     testing_towns: List[str] = None   # Add testing towns configuration
-    selected_sensors: Optional[List[int]] = None  # List of sensor indices to use
-    sensor_range: Optional[List[int]] = None  # Alternative: [start, end] range of sensors
+    #selected_sensors: Optional[List[int]] = None  # List of sensor indices to use
+    #sensor_range: Optional[List[int]] = None  # Alternative: [start, end] range of sensors
 
-class Dataset_CARLA(Dataset):
-    cfg: Dataset_CARLACfg
+class Dataset_SEED4D(Dataset):
+    cfg: Dataset_SEED4DCfg
     stage: Stage
     view_sampler: ViewSampler
 
     def __init__(
         self,
-        cfg: Dataset_CARLACfg,
+        cfg: Dataset_SEED4DCfg,
         stage: Stage,
         view_sampler: ViewSampler,
     ) -> None:
@@ -64,7 +64,7 @@ class Dataset_CARLA(Dataset):
         self.to_tensor = tf.ToTensor()
         
         # Configure sensor selection
-        self.sensor_indices = self._configure_sensor_selection()
+        #self.sensor_indices = self._configure_sensor_selection()
         
         data_dir_naming = '/ClearNoon/vehicle.audi.tt/'
         
@@ -74,7 +74,7 @@ class Dataset_CARLA(Dataset):
         
         if (self.stage == 'train'):
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns] #data/seed4d/static/Town02/ClearNoon
-            self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, '/step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
+            self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
             self.input_images = [spawn_dir + '/nuscenes/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
@@ -82,7 +82,7 @@ class Dataset_CARLA(Dataset):
             
         elif (self.stage == 'val'): # val stands for validation
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns]
-            self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, '/step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
+            self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
             self.input_images = [spawn_dir + '/nuscenes/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
@@ -90,7 +90,7 @@ class Dataset_CARLA(Dataset):
             
         elif (self.stage == 'test'): # val stands for validation
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in testing_towns]
-            self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, '/step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
+            self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
             self.input_images = [spawn_dir + '/nuscenes/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
@@ -118,9 +118,9 @@ class Dataset_CARLA(Dataset):
         _ = [self.load_example_id(idx) for idx in range(0, len(self.input_spawns))]
         print(f"Carla Dataset, initialized for {self.stage} stage, will use # {len(self.input_spawns)} spawns with augmentation = {self.augment_flag}")
         print(f"Training towns: {training_towns}, Testing towns: {testing_towns}")
-        print(f"Selected sensors: {self.sensor_indices}")
+        #print(f"Selected sensors: {self.sensor_indices}")
     
-    def _configure_sensor_selection(self) -> List[int]:
+    '''def _configure_sensor_selection(self) -> List[int]:
         """Configure which sensors to use based on configuration."""
         if self.cfg.selected_sensors is not None:
             # Use explicitly specified sensor list
@@ -137,16 +137,20 @@ class Dataset_CARLA(Dataset):
             print(f"Using default sensors (all): {sensor_indices}")
         
         return sensor_indices
-    
-    def _filter_sensor_data(self, image_paths: List[str], intrinsics: List[torch.Tensor], 
-                           extrinsics: List[torch.Tensor]) -> tuple:
-        """Filter sensor data based on selected sensor indices."""
+    '''
+    #def _filter_sensor_data(self, image_paths: List[str], intrinsics: List[torch.Tensor], 
+    #                       extrinsics: List[torch.Tensor]) -> tuple:
+    #    """Filter sensor data based on selected sensor indices."""
+
+    '''
+    def _filter_sensor_data(self, image_paths: List[str], intrinsics: torch.Tensor, extrinsics: torch.Tensor) -> tuple:
+        print('checkpoint AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'len(image_paths)', len(image_paths),'len(intrinsics)',len(intrinsics), 'len(extrinsics)',len(extrinsics))
         filtered_image_paths = [image_paths[i] for i in self.sensor_indices if i < len(image_paths)]
         filtered_intrinsics = [intrinsics[i] for i in self.sensor_indices if i < len(intrinsics)]
         filtered_extrinsics = [extrinsics[i] for i in self.sensor_indices if i < len(extrinsics)]
-        
+        print('checkpoint BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', 'len(filtered_image_paths)', len(filtered_image_paths),'len(filtered_intrinsics)',len(filtered_intrinsics), 'len(extrinsics)',len(filtered_extrinsics))
         return filtered_image_paths, filtered_intrinsics, filtered_extrinsics
-    
+    '''
     def __len__(self):
         return len(self.input_spawns)
     
@@ -173,6 +177,8 @@ class Dataset_CARLA(Dataset):
         
         input_transforms = self.input_spawns[index]
         output_transforms = self.output_spawns[index]
+        print('Checkpoint CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC input_transforms', input_transforms)
+        print('Checkpoint DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD output_transforms', output_transforms)
         
         if not hasattr(self, "all_texture_context"):
             
@@ -201,13 +207,13 @@ class Dataset_CARLA(Dataset):
                                                                                                                  near=self.cfg.z_near, far=self.cfg.z_far)
             target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
                                                                                                               near=self.cfg.z_near, far=self.cfg.z_far)
-            
+            '''
             # Filter sensor data based on configuration
             context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices = self._filter_sensor_data(
                 context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices)
             target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = self._filter_sensor_data(
                 target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices)
-            
+            '''
             # Adding selected Ego Vehicle camera views 
             for image_path, intrins, extrins in zip(context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices):
                 self.all_texture_context[example_id].append(image_path)

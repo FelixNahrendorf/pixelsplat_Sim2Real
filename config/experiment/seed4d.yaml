@@ -16,7 +16,7 @@ dataset:
   training_towns: ['02']  # Configure training towns here #training_towns = ['01','03','04','05','06','07', '10HD']
   testing_towns: ['02']   # Configure testing towns here
   # New sensor selection parameters
-  selected_sensors: [0, 1, 2, 3, 5, 6]  # List of sensor indices to use (0-6 based on transforms_ego.json)
+  #selected_sensors: [0, 1, 2, 3, 5, 6]  # List of sensor indices to use (0-6 based on transforms_ego.json)
   # Alternative: you can also specify sensor ranges
   # sensor_range: [0, 6]  # Use sensors from index 0 to 6 (inclusive)
 
