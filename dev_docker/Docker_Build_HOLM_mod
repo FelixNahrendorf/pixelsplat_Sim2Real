@@ -1,0 +1,135 @@
+FROM c-adas-dldi-baseimages-docker-v.eu.artifactory.conti.de/nvidia/pytorch:23.07-py3-continental.v1
+#
+# # nvidia/pytorch:23.07-py3-continental.v1 supports cuda 12.1.1; 
+# # python 3.10 and torch2.1.0 that we need also to be compatible 
+# # with xformers as in https://github.com/facebookresearch/xformers/releases
+# #
+ARG CUDA_ARCHITECTURES=86
+ARG OS_VERSION=22.04
+ARG CUDA_VERSION=cu121
+ARG TORCH_VERSION=2.1.0
+ARG FORCE_CUDA=1
+
+ENV DEBIAN_FRONTEND=noninteractive
+## Set timezone as it is required by some packages.
+ENV TZ=Europe/Berlin
+## CUDA Home, required to find CUDA in some packages.
+ENV CUDA_HOME=/usr/local/cuda
+ENV CUB_HOME=/usr/local/cuda
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64
+ENV TCNN_CUDA_ARCHITECTURES=86
+# #
+COPY ca-certificates ca-certificates
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends software-properties-common ca-certificates \
+    && update-ca-certificates
+# #
+# Install required apt packages and clear cache afterwards.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    curl \
+    ffmpeg \
+    git \
+    libatlas-base-dev \
+    libboost-filesystem-dev \
+    libboost-graph-dev \
+    libboost-program-options-dev \
+    libboost-system-dev \
+    libboost-test-dev \
+    libhdf5-dev \
+    libcgal-dev \
+    libeigen3-dev \
+    libflann-dev \
+    libfreeimage-dev \
+    libgflags-dev \
+#insertion for open3d functionality  start
+    libgl1 \
+    libxrender1 \
+    libxext6 \
+    libsm6 \
+#iteration two:
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+#insertion for open3d functionality  end
+    libglew-dev \
+    libgoogle-glog-dev \
+    libmetis-dev \
+    libglm-dev\
+    libprotobuf-dev \
+    libqt5opengl5-dev \
+    libsqlite3-dev \
+    libsuitesparse-dev \
+    nano \
+    protobuf-compiler \
+    # python-is-python3 \
+    # # python-dev \
+    # python3-pip \
+    qtbase5-dev \
+    sudo \
+    vim-tiny \
+    wget && \
+    rm -rf /var/lib/apt/lists/*
+# #
+RUN alias python=python3.10
+# Install GLOG (required by ceres).
+RUN git clone --branch v0.6.0 https://github.com/google/glog.git --single-branch && \
+    cd glog && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    make -j `nproc` && \
+    make install && \
+    cd ../.. && \
+    rm -rf glog
+
+COPY requirements.txt /app/requirements.txt
+COPY dino_requirements.txt /app/dino_requirements.txt
+COPY pixelSplat_requirements.txt /app/pixelSplat_requirements.txt
+COPY relevant_libraries/torch_scatter-2.1.2+pt21cu121-cp310-cp310-linux_x86_64.whl /app/torch_scatter-2.1.2+pt21cu121-cp310-cp310-linux_x86_64.whl
+COPY relevant_libraries/pytorch3d-0.7.5-cp310-cp310-linux_x86_64.whl /app/pytorch3d-0.7.5-cp310-cp310-linux_x86_64.whl
+
+# Upgrade pip and install packages.
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools pathtools promise pybind11
+# #
+# Install requirements for running sshELF
+RUN python -m pip install --no-cache-dir ninja && \
+    python -m pip install --no-cache-dir -r /app/dino_requirements.txt && \
+    python -m pip install --no-cache-dir \
+    --extra-index-url=https://pypi.nvidia.com \
+    cudf-cu11==24.6.* cuml-cu11==24.6.* && \
+    python -m pip install --no-cache-dir -r /app/pixelSplat_requirements.txt && \
+    cd /app
+# #
+RUN git clone https://github.com/dcharatan/diff-gaussian-rasterization-modified && \
+    cd diff-gaussian-rasterization-modified/ && python setup.py install && \
+    python -m pip install --no-cache-dir setuptools==69.5.1 && cd /app
+# #
+RUN python -m pip install --no-cache-dir /app/pytorch3d-0.7.5-cp310-cp310-linux_x86_64.whl && \
+    python -m pip install --no-cache-dir nvidia-cutlass && \
+    python -m pip install --no-cache-dir natten==0.17.1+torch210cu121 -f https://shi-labs.com/natten/wheels && cd /app
+# #
+RUN python -m pip install --no-cache-dir /app/torch_scatter-2.1.2+pt21cu121-cp310-cp310-linux_x86_64.whl
+# #
+RUN python -m pip install --no-cache-dir omegaconf 
+RUN python -m pip install --no-cache-dir --ignore-installed blinker==1.8.2
+#RUN python -m pip install --no-cache-dir open3d==0.18.0 && python -c "import open3d"
+# #
+RUN mkdir /app/pretrained_models/ && cd /app/pretrained_models/ && \
+    wget -nc https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_pretrain.pth && \
+    wget -nc https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth && \
+    wget -nc https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth && \
+    wget -nc https://huggingface.co/spaces/LiheYoung/Depth-Anything/blob/main/checkpoints/depth_anything_vits14.pth && \
+    wget -nc https://huggingface.co/spaces/LiheYoung/Depth-Anything/blob/main/checkpoints/depth_anything_vitb14.pth && \
+    wget -nc https://huggingface.co/spaces/LiheYoung/Depth-Anything/blob/main/checkpoints/depth_anything_vitl14.pth && cd /app/
+
+COPY hubconf.py /app/pretrained_models/hubconf.py
+# Add your git configuration commands
+RUN git config --global user.email "eyvaz.necefli.std@bhos.edu.az" \
+    && git config --global user.name "Eyvaz27"
+
+# Change working directory
+WORKDIR /app
+CMD /bin/bash -l
+EXPOSE 2873

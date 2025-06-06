@@ -1,0 +1,27 @@
+# @package _global_
+
+defaults:
+  - override /dataset: carla
+  - override /model/encoder: epipolar
+  - override /model/encoder/backbone: dino
+  - override /loss: [mse, lpips, mae]
+
+wandb:
+  name: seed
+  tags: [seed, 256x256]
+
+dataset:
+  image_shape: [256, 256]
+  roots: [datasets/carla]
+
+data_loader:
+  train:
+    batch_size: 1 # 7 
+
+test:
+  depth_mode: depth
+  output_path: outputs/test
+  compute_scores: true
+
+trainer:
+  max_steps: 300_001
