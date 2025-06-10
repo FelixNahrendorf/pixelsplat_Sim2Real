@@ -40,7 +40,7 @@ optimizer:
 checkpointing:
   #load: "/app/new/sshELF_Benchmarks/pixelsplat/outputs/2024-11-04/14-35-32/checkpoints/epoch=315-step=300000.ckpt"
   #load: /app/code/code/pixelsplat/outputs/2024-11-04/14-35-32/checkpoints/epoch=315-step=300000.ckpt
-  load: /app/code/code/pixelsplat/outputs/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
+  load: /app/code/pixelsplat_Sim2Real/outputs/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
   every_n_train_steps: 20000
   save_top_k: -1
 
