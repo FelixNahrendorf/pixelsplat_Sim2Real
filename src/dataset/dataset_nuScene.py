@@ -34,7 +34,7 @@ from nuscenes.scripts.export_2d_annotations_as_json import post_process_coords, 
 from nuscenes.utils.geometry_utils import view_points, transform_matrix
 from pyquaternion.quaternion import Quaternion
 
-NUSCENE_DATA_DIR = "/datasets/nuscenes_full/" 
+NUSCENE_DATA_DIR = "/app/datasets/nuscenes_full/" 
 assert NUSCENE_DATA_DIR is not None, "Update the location of the NUSCENE Dataset"
     
 @dataclass
