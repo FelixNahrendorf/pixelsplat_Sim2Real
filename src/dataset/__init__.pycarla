@@ -3,14 +3,14 @@
 from torch.utils.data import Dataset
 
 from ..misc.step_tracker import StepTracker
-from .dataset_nuScene import Dataset_NUSCENE, Dataset_NUSCENECfg
+from .dataset_carla import Dataset_CARLA, Dataset_CARLACfg
 from .types import Stage
 from .view_sampler import get_view_sampler
 
 DATASETS: dict[str, Dataset] = {
-    "nuscene": Dataset_NUSCENE}
+    "carla": Dataset_CARLA}
 
-DatasetCfg = Dataset_NUSCENECfg
+DatasetCfg = Dataset_CARLACfg
 
 def get_dataset(
     cfg: DatasetCfg,
@@ -19,10 +19,10 @@ def get_dataset(
 ) -> Dataset:
     # In our case views samplers could be different dependent on whether 
     # we are performing training vs. evaluation
-    if stage == 'train' or stage == 'val':        
+    if stage == 'train':        
         view_sampler = get_view_sampler(
             cfg.train_view_sampler, stage, step_tracker)
-    elif stage == 'test':
+    elif stage == 'test' or stage == 'val':
         view_sampler = get_view_sampler(
             cfg.eval_view_sampler, stage, step_tracker)
     return DATASETS[cfg.name](cfg, stage, view_sampler)
