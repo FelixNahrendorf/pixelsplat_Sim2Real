@@ -9,7 +9,7 @@ from torch import Tensor, nn
 from ....dataset.types import BatchedViews
 from .backbone import Backbone
 from .backbone_resnet import BackboneResnet, BackboneResnetCfg
-
+torch.hub._validate_not_a_forked_repo=lambda a,b,c: True
 
 @dataclass
 class BackboneDinoCfg:

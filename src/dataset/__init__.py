@@ -1,28 +1,28 @@
+### This code is copied from https://github.com/dcharatan/pixelsplat/tree/main
+
 from torch.utils.data import Dataset
 
 from ..misc.step_tracker import StepTracker
-from .dataset_re10k import DatasetRE10k, DatasetRE10kCfg
+from .dataset_carla import Dataset_CARLA, Dataset_CARLACfg
 from .types import Stage
 from .view_sampler import get_view_sampler
 
 DATASETS: dict[str, Dataset] = {
-    "re10k": DatasetRE10k,
-}
+    "carla": Dataset_CARLA}
 
-
-DatasetCfg = DatasetRE10kCfg
-
+DatasetCfg = Dataset_CARLACfg
 
 def get_dataset(
     cfg: DatasetCfg,
     stage: Stage,
     step_tracker: StepTracker | None,
 ) -> Dataset:
-    view_sampler = get_view_sampler(
-        cfg.view_sampler,
-        stage,
-        cfg.overfit_to_scene is not None,
-        cfg.cameras_are_circular,
-        step_tracker,
-    )
+    # In our case views samplers could be different dependent on whether 
+    # we are performing training vs. evaluation
+    if stage == 'train':        
+        view_sampler = get_view_sampler(
+            cfg.train_view_sampler, stage, step_tracker)
+    elif stage == 'test' or stage == 'val':
+        view_sampler = get_view_sampler(
+            cfg.eval_view_sampler, stage, step_tracker)
     return DATASETS[cfg.name](cfg, stage, view_sampler)

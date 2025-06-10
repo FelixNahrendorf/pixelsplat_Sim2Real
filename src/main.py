@@ -9,8 +9,11 @@ from jaxtyping import install_import_hook
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers.wandb import WandbLogger
-from lightning.pytorch.plugins.environments import SLURMEnvironment
+# from lightning.pytorch.plugins.environments import SLURMEnvironment
 from omegaconf import DictConfig, OmegaConf
+
+os.environ['SSL_CERT_DIR'] = '/etc/ssl/certs'
+os.environ['REQUESTS_CA_BUNDLE'] = '/etc/ssl/certs/ca-certificates.crt'
 
 # Configure beartype and jaxtyping.
 with install_import_hook(
@@ -39,9 +42,10 @@ def cyan(text: str) -> str:
     config_name="main",
 )
 def train(cfg_dict: DictConfig):
+    print(f"Experiment Configurations:\n{cfg_dict}\n")
+    
     cfg = load_typed_root_config(cfg_dict)
     set_cfg(cfg_dict)
-
     # Set up the output directory.
     output_dir = Path(
         hydra.core.hydra_config.HydraConfig.get()["runtime"]["output_dir"]
@@ -98,10 +102,12 @@ def train(cfg_dict: DictConfig):
         ),
         callbacks=callbacks,
         val_check_interval=cfg.trainer.val_check_interval,
+        limit_val_batches = 10,
+        check_val_every_n_epoch=None,  # new code
         enable_progress_bar=False,
         gradient_clip_val=cfg.trainer.gradient_clip_val,
         max_steps=cfg.trainer.max_steps,
-        plugins=[SLURMEnvironment(auto_requeue=False)],
+        # plugins=[SLURMEnvironment(auto_requeue=False)],
     )
     torch.manual_seed(cfg_dict.seed + trainer.global_rank)
 

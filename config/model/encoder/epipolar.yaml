@@ -37,7 +37,7 @@ epipolar_transformer:
   num_samples: 32
   d_dot: 128
   d_mlp: 256
-  downscale: 4
+  downscale: 8  # # main number of interest 4
 
 visualizer:
   num_samples: 8

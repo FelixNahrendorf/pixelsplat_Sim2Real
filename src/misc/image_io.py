@@ -1,6 +1,7 @@
 import io
 from pathlib import Path
 from typing import Union
+import skvideo.io
 
 import numpy as np
 import torch
@@ -71,3 +72,27 @@ def load_image(
     path: Union[Path, str],
 ) -> Float[Tensor, "3 height width"]:
     return tf.ToTensor()(Image.open(path))[:3]
+
+
+def save_video(
+    images: list[FloatImage],
+    path: Union[Path, str],
+) -> None:
+    """Save an image. Assumed to be in range 0-1."""
+
+    # Create the parent directory if it doesn't already exist.
+    path = Path(path)
+    path.parent.mkdir(exist_ok=True, parents=True)
+
+    # Save the image.
+    # Image.fromarray(prep_image(image)).save(path)
+    frames = []
+    for image in images:
+        frames.append(prep_image(image))
+
+    writer = skvideo.io.FFmpegWriter(path, 
+                                     outputdict={'-pix_fmt': 'yuv420p', '-crf': '21', 
+                                                 '-vf': f'setpts=1.*PTS'})
+    for frame in frames:
+        writer.writeFrame(frame)
+    writer.close()

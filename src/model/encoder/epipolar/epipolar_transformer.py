@@ -43,8 +43,10 @@ class EpipolarTransformer(nn.Module):
         d_in: int,
     ) -> None:
         super().__init__()
-        num_context_views = get_cfg().dataset.view_sampler.num_context_views
-
+        try:
+            num_context_views = get_cfg().dataset.view_sampler.num_context_views
+        except: 
+            num_context_views = get_cfg().dataset.train_view_sampler.num_context_views
         self.cfg = cfg
         self.epipolar_sampler = EpipolarSampler(num_context_views, cfg.num_samples)
         if self.cfg.num_octaves > 0:

@@ -1,7 +1,5 @@
 defaults:
-  - dataset: re10k
-  - optional dataset/view_sampler_dataset_specific_config: ${dataset/view_sampler}_${dataset}
-  - override dataset/view_sampler: all
+  - dataset: carla
 
 dataset:
   overfit_to_scene: null
@@ -29,7 +27,7 @@ index_generator:
   max_overlap: 1.0
   min_distance: 45
   max_distance: 135
-  output_path: outputs/evaluation_index_re10k
+  output_path: outputs/evaluation_index_carla
   save_previews: false
   seed: 123
 

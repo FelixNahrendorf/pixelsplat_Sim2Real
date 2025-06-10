@@ -1,9 +1,7 @@
 defaults:
-  - dataset: re10k
+  - dataset: carla
   - model/encoder: epipolar
-  - loss: []
-  - optional dataset/view_sampler_dataset_specific_config: ${dataset/view_sampler}_${dataset}
-  - override dataset/view_sampler: evaluation
+  - loss: [mse, mae]
 
 data_loader:
   train:

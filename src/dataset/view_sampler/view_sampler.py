@@ -14,22 +14,16 @@ T = TypeVar("T")
 class ViewSampler(ABC, Generic[T]):
     cfg: T
     stage: Stage
-    is_overfitting: bool
-    cameras_are_circular: bool
     step_tracker: StepTracker | None
 
     def __init__(
         self,
         cfg: T,
         stage: Stage,
-        is_overfitting: bool,
-        cameras_are_circular: bool,
         step_tracker: StepTracker | None,
     ) -> None:
         self.cfg = cfg
         self.stage = stage
-        self.is_overfitting = is_overfitting
-        self.cameras_are_circular = cameras_are_circular
         self.step_tracker = step_tracker
 
     @abstractmethod

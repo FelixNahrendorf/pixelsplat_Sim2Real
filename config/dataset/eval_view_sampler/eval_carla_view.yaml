@@ -1,0 +1,14 @@
+name: eval_carla_view
+
+num_target_views: 20
+num_context_views: 6
+augment: false
+augment_p: 0.5
+augment_mask_count: 5
+
+# If you want to hard-code context views, do so here.
+context_views: null
+target_views: null
+# #
+input_context_resolution: 256
+output_target_resolution: 256

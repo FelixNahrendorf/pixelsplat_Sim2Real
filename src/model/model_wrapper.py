@@ -14,11 +14,11 @@ from torch import Tensor, nn, optim
 
 from ..dataset.data_module import get_data_shim
 from ..dataset.types import BatchedExample
-from ..evaluation.metrics import compute_lpips, compute_psnr, compute_ssim
+from ..evaluation.metrics import compute_lpips, compute_psnr, compute_ssim, compute_depth_mse
 from ..global_cfg import get_cfg
 from ..loss import Loss
 from ..misc.benchmarker import Benchmarker
-from ..misc.image_io import prep_image, save_image
+from ..misc.image_io import prep_image, save_image, save_video
 from ..misc.LocalLogger import LOG_PATH, LocalLogger
 from ..misc.step_tracker import StepTracker
 from ..visualization.annotation import add_label
@@ -36,17 +36,26 @@ from ..visualization.validation_in_3d import render_cameras, render_projections
 from .decoder.decoder import Decoder, DepthRenderingMode
 from .encoder import Encoder
 from .encoder.visualization.encoder_visualizer import EncoderVisualizer
-
+import numpy as np
+import json
+import os 
+import time
+os.environ["CUDA_VISIBLE_DEVICES"]='0'
+os.environ['SSL_CERT_DIR'] = '/etc/ssl/certs'
+os.environ['REQUESTS_CA_BUNDLE'] = '/etc/ssl/certs/ca-certificates.crt'
 
 @dataclass
 class OptimizerCfg:
     lr: float
     warm_up_steps: int
 
-
 @dataclass
 class TestCfg:
     output_path: Path
+    compute_scores: bool
+    save_image: bool
+    save_video: bool
+    eval_time_skip_steps: int
 
 
 @dataclass
@@ -104,11 +113,15 @@ class ModelWrapper(LightningModule):
 
         # This is used for testing.
         self.benchmarker = Benchmarker()
+        
+        if self.test_cfg.compute_scores:
+            self.test_step_outputs = {}
+            self.time_skip_steps_dict = {"encoder": 0, "decoder": 0}
 
     def training_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
         _, _, _, h, w = batch["target"]["image"].shape
-
+        
         # Run the model.
         gaussians = self.encoder(batch["context"], self.global_step, False)
         output = self.decoder.forward(
@@ -150,15 +163,12 @@ class ModelWrapper(LightningModule):
             self.step_tracker.set_step(self.global_step)
 
         return total_loss
-
+    
     def test_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
-
         b, v, _, h, w = batch["target"]["image"].shape
         assert b == 1
-        if batch_idx % 100 == 0:
-            print(f"Test step {batch_idx:0>6}.")
-
+        start_time = time.time()
         # Render Gaussians.
         with self.benchmarker.time("encoder"):
             gaussians = self.encoder(
@@ -167,36 +177,153 @@ class ModelWrapper(LightningModule):
                 deterministic=False,
             )
         with self.benchmarker.time("decoder", num_calls=v):
-            color = []
-            for i in range(0, batch["target"]["far"].shape[1], 32):
-                output = self.decoder.forward(
-                    gaussians,
-                    batch["target"]["extrinsics"][:1, i : i + 32],
-                    batch["target"]["intrinsics"][:1, i : i + 32],
-                    batch["target"]["near"][:1, i : i + 32],
-                    batch["target"]["far"][:1, i : i + 32],
-                    (h, w),
-                )
-                color.append(output.color)
-            color = torch.cat(color, dim=1)
-
-        # Save images.
-        (scene,) = batch["scene"]
+            output = self.decoder.forward(
+                gaussians,
+                batch["target"]["extrinsics"],
+                batch["target"]["intrinsics"],
+                batch["target"]["near"],
+                batch["target"]["far"],
+                (h, w),
+                depth_mode="depth",
+            )
+        compute_time = time.time()-start_time
+        (scene,) = (batch["scene"][0] + "_" + str(batch_idx),)
         name = get_cfg()["wandb"]["name"]
         path = self.test_cfg.output_path / name
-        for index, color in zip(batch["target"]["index"][0], color[0]):
-            save_image(color, path / scene / f"color/{index:0>6}.png")
-        for index, color in zip(
-            batch["context"]["index"][0], batch["context"]["image"][0]
-        ):
-            save_image(color, path / scene / f"context/{index:0>6}.png")
+        images_prob = output.color[0]
+        depth_prop = output.depth[0].unsqueeze(1)
+        rgb_gt = batch["target"]["image"][0]
+        depth_gt = batch["target"]["depth"][0]
+
+        # Save images.
+        if self.test_cfg.save_image:
+            for index, color in zip(batch["target"]["index"][0], images_prob):
+                save_image(color, path / scene / f"color/{index:0>6}.png")
+            for index, depth_map in zip(batch["target"]["index"][0], depth_prop):
+                save_image(depth_map.squeeze(0)/60, path / scene / f"depth/{index:0>6}.png")
+        
+        # save video
+        if self.test_cfg.save_video:
+            frame_str = "_".join([str(x.item()) for x in batch["context"]["index"][0]])
+            save_video(
+                [a for a in images_prob],
+                path / "video" / f"{scene}_frame_{frame_str}.mp4",
+            )
+
+        # compute scores
+        if self.test_cfg.compute_scores:
+            if batch_idx < self.test_cfg.eval_time_skip_steps:
+                self.time_skip_steps_dict["encoder"] += 1
+                self.time_skip_steps_dict["decoder"] += v
+            rgb = images_prob
+
+            if f"psnr" not in self.test_step_outputs:
+                self.test_step_outputs[f"psnr"] = []
+            if f"ssim" not in self.test_step_outputs:
+                self.test_step_outputs[f"ssim"] = []
+            if f"lpips" not in self.test_step_outputs:
+                self.test_step_outputs[f"lpips"] = []
+            if f"drmse" not in self.test_step_outputs:
+                self.test_step_outputs[f"drmse"] = []
+            if f"compute_time" not in self.test_step_outputs:
+                self.test_step_outputs[f"compute_time"] = []
+
+            self.test_step_outputs[f"psnr"].append(
+                compute_psnr(rgb_gt, rgb).mean().item()
+            )
+            self.test_step_outputs[f"ssim"].append(
+                compute_ssim(rgb_gt, rgb).mean().item()
+            )
+            self.test_step_outputs[f"lpips"].append(
+                compute_lpips(rgb_gt, rgb).mean().item()
+            )
+            self.test_step_outputs[f"compute_time"].append(compute_time)
+            self.test_step_outputs[f"drmse"].append(
+                torch.sqrt(compute_depth_mse(depth_gt.clamp(min=0.0, max=60.0),
+                                             depth_prop.clamp(min=0.0, max=60.0), 
+                                             output_color=rgb.clamp(min=0.0, max=1.0))).item())
 
     def on_test_end(self) -> None:
         name = get_cfg()["wandb"]["name"]
-        self.benchmarker.dump(self.test_cfg.output_path / name / "benchmark.json")
-        self.benchmarker.dump_memory(
-            self.test_cfg.output_path / name / "peak_memory.json"
-        )
+        out_dir = self.test_cfg.output_path / name
+        saved_scores = {}
+        if self.test_cfg.compute_scores:
+            self.benchmarker.dump_memory(out_dir / "peak_memory.json")
+            self.benchmarker.dump(out_dir / "benchmark.json")
+
+            for metric_name, metric_scores in self.test_step_outputs.items():
+                avg_scores = sum(metric_scores) / len(metric_scores)
+                saved_scores[metric_name] = avg_scores
+                print(metric_name, avg_scores)
+                with (out_dir / f"scores_{metric_name}_all.json").open("w") as f:
+                    json.dump(metric_scores, f)
+                metric_scores.clear()
+
+            for tag, times in self.benchmarker.execution_times.items():
+                times = times[int(self.time_skip_steps_dict[tag]) :]
+                saved_scores[tag] = [len(times), np.mean(times)]
+                print(
+                    f"{tag}: {len(times)} calls, avg. {np.mean(times)} seconds per call"
+                )
+                self.time_skip_steps_dict[tag] = 0
+
+            with (out_dir / f"scores_all_avg.json").open("w") as f:
+                json.dump(saved_scores, f)
+            self.benchmarker.clear_history()
+        else:
+            self.benchmarker.dump(self.test_cfg.output_path / name / "benchmark.json")
+            self.benchmarker.dump_memory(
+                self.test_cfg.output_path / name / "peak_memory.json"
+            )
+            self.benchmarker.summarize()
+
+
+    # def test_step(self, batch, batch_idx):
+    #     batch: BatchedExample = self.data_shim(batch)
+
+    #     b, v, _, h, w = batch["target"]["image"].shape
+    #     assert b == 1
+    #     if batch_idx % 100 == 0:
+    #         print(f"Test step {batch_idx:0>6}.")
+
+    #     # Render Gaussians.
+    #     with self.benchmarker.time("encoder"):
+    #         gaussians = self.encoder(
+    #             batch["context"],
+    #             self.global_step,
+    #             deterministic=False,
+    #         )
+    #     with self.benchmarker.time("decoder", num_calls=v):
+    #         color = []
+    #         for i in range(0, batch["target"]["far"].shape[1], 32):
+    #             output = self.decoder.forward(
+    #                 gaussians,
+    #                 batch["target"]["extrinsics"][:1, i : i + 32],
+    #                 batch["target"]["intrinsics"][:1, i : i + 32],
+    #                 batch["target"]["near"][:1, i : i + 32],
+    #                 batch["target"]["far"][:1, i : i + 32],
+    #                 (h, w),
+    #             )
+    #             color.append(output.color)
+    #         color = torch.cat(color, dim=1)
+
+    #     # Save images.
+    #     (scene,) = batch["scene"]
+    #     name = get_cfg()["wandb"]["name"]
+    #     path = self.test_cfg.output_path / name
+    #     for index, color in zip(batch["target"]["index"][0], color[0]):
+    #         save_image(color, path / scene / f"color/{index:0>6}.png")
+    #     for index, color in zip(
+    #         batch["context"]["index"][0], batch["context"]["image"][0]
+    #     ):
+    #         save_image(color, path / scene / f"context/{index:0>6}.png")
+
+    # def on_test_end(self) -> None:
+    #     name = get_cfg()["wandb"]["name"]
+    #     self.benchmarker.dump(self.test_cfg.output_path / name / "benchmark.json")
+    #     self.benchmarker.dump_memory(
+    #         self.test_cfg.output_path / name / "peak_memory.json"
+    #     )
 
     @rank_zero_only
     def validation_step(self, batch, batch_idx):

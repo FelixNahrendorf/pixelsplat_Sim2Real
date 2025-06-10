@@ -36,6 +36,8 @@ def download_checkpoint(
     download_dir.mkdir(exist_ok=True, parents=True)
     root = download_dir / run_id
     chosen.download(root=root)
+    return_answer = root / "model.ckpt"
+    print(f"\nError is performed here with {return_answer}\n")
     return root / "model.ckpt"
 
 
