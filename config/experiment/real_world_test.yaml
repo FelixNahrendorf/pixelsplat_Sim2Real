@@ -23,5 +23,5 @@ trainer:
 
 test:
   depth_mode: depth
-  output_path: outputs/test/time_df4
+  output_path: outputs/test/nuscene #time_df4
   compute_scores: true
