@@ -8,7 +8,7 @@ from functools import cached_property
 from numpy.random import default_rng
 from io import BytesIO
 from pathlib import Path
-from typing import Literal
+from typing import Literal, List
 import open3d as o3d
 
 import torch
@@ -28,7 +28,7 @@ from .view_sampler import ViewSampler, ViewSamplerCfg
 from .dataset_readers import readPixelSplatCamera
 from ..misc.general_utils import img_path_to_Torch, depth_path_to_Torch
 
-CARLA_DATASET_ROOT = '/app/data/seed4d/static/' # Change this to your data directory 
+CARLA_DATASET_ROOT = '/app/data/theo_Town02/' # Change this to your data directory 
 assert CARLA_DATASET_ROOT is not None, "Update the location of the CARLA Dataset"
 
 LIDAR_DATASET_ROOT = '/app/new/pseudo_lidar/' # Will be directory to save pseudo lidar 
@@ -41,6 +41,8 @@ class Dataset_CARLACfg(DatasetCfgCommon):
     max_fov: float
     z_near: float
     z_far: float
+    training_towns: List[str] = None  # Add training towns configuration
+    testing_towns: List[str] = None   # Add testing towns configuration
 
 class Dataset_CARLA(Dataset):
     cfg: Dataset_CARLACfg
@@ -60,9 +62,10 @@ class Dataset_CARLA(Dataset):
         self.to_tensor = tf.ToTensor()
         
         data_dir_naming = '/ClearNoon/vehicle.tesla.invisible/'
-        #training_towns = ['01','03','04','05','06','07', '10HD']
-        training_towns = ['02']
-        testing_towns = ['02']
+        
+        # Use configuration values or default fallback
+        training_towns = self.cfg.training_towns if self.cfg.training_towns is not None else ['02']
+        testing_towns = self.cfg.testing_towns if self.cfg.testing_towns is not None else ['02']
         
         if (self.stage == 'train'):
             self.parent_dirs = [CARLA_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns]
@@ -109,6 +112,7 @@ class Dataset_CARLA(Dataset):
         # Here we are loading all the data into RAM 
         _ = [self.load_example_id(idx) for idx in range(0, len(self.input_spawns))]
         print(f"Carla Dataset, initialized for {self.stage} stage, will use # {len(self.input_spawns)} spawns with augmentation = {self.augment_flag}")
+        print(f"Training towns: {training_towns}, Testing towns: {testing_towns}")
     
     def __len__(self):
         return len(self.input_spawns)
@@ -252,4 +256,3 @@ def find_nth_reverse(haystack: str, needle: str, n: int) -> int:
         end = haystack.rfind(needle, 0, end - len(needle))
         n -= 1
     return end
-    
