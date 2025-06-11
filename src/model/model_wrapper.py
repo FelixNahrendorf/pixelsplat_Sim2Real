@@ -40,7 +40,6 @@ import numpy as np
 import json
 import os 
 import time
-#os.environ["CUDA_VISIBLE_DEVICES"]='0'
 os.environ['SSL_CERT_DIR'] = '/etc/ssl/certs'
 os.environ['REQUESTS_CA_BUNDLE'] = '/etc/ssl/certs/ca-certificates.crt'
 
