@@ -8,7 +8,7 @@ from functools import cached_property
 from numpy.random import default_rng
 from io import BytesIO
 from pathlib import Path
-from typing import Literal, List
+from typing import Literal, List, Optional, Union
 import open3d as o3d
 
 import torch
@@ -43,6 +43,8 @@ class Dataset_CARLACfg(DatasetCfgCommon):
     z_far: float
     training_towns: List[str] = None  # Add training towns configuration
     testing_towns: List[str] = None   # Add testing towns configuration
+    selected_sensors: Optional[List[int]] = None  # List of sensor indices to use
+    sensor_range: Optional[List[int]] = None  # Alternative: [start, end] range of sensors
 
 class Dataset_CARLA(Dataset):
     cfg: Dataset_CARLACfg
@@ -60,6 +62,9 @@ class Dataset_CARLA(Dataset):
         self.stage = stage
         self.view_sampler = view_sampler
         self.to_tensor = tf.ToTensor()
+        
+        # Configure sensor selection
+        self.sensor_indices = self._configure_sensor_selection()
         
         data_dir_naming = '/ClearNoon/vehicle.audi.tt/'
         
@@ -113,6 +118,34 @@ class Dataset_CARLA(Dataset):
         _ = [self.load_example_id(idx) for idx in range(0, len(self.input_spawns))]
         print(f"Carla Dataset, initialized for {self.stage} stage, will use # {len(self.input_spawns)} spawns with augmentation = {self.augment_flag}")
         print(f"Training towns: {training_towns}, Testing towns: {testing_towns}")
+        print(f"Selected sensors: {self.sensor_indices}")
+    
+    def _configure_sensor_selection(self) -> List[int]:
+        """Configure which sensors to use based on configuration."""
+        if self.cfg.selected_sensors is not None:
+            # Use explicitly specified sensor list
+            sensor_indices = self.cfg.selected_sensors
+            print(f"Using explicitly selected sensors: {sensor_indices}")
+        elif self.cfg.sensor_range is not None:
+            # Use sensor range [start, end] (inclusive)
+            start, end = self.cfg.sensor_range
+            sensor_indices = list(range(start, end + 1))
+            print(f"Using sensor range {start}-{end}: {sensor_indices}")
+        else:
+            # Default: use all sensors (0-6 based on the JSON structure)
+            sensor_indices = list(range(7))  # 0, 1, 2, 3, 4, 5, 6
+            print(f"Using default sensors (all): {sensor_indices}")
+        
+        return sensor_indices
+    
+    def _filter_sensor_data(self, image_paths: List[str], intrinsics: List[torch.Tensor], 
+                           extrinsics: List[torch.Tensor]) -> tuple:
+        """Filter sensor data based on selected sensor indices."""
+        filtered_image_paths = [image_paths[i] for i in self.sensor_indices if i < len(image_paths)]
+        filtered_intrinsics = [intrinsics[i] for i in self.sensor_indices if i < len(intrinsics)]
+        filtered_extrinsics = [extrinsics[i] for i in self.sensor_indices if i < len(extrinsics)]
+        
+        return filtered_image_paths, filtered_intrinsics, filtered_extrinsics
     
     def __len__(self):
         return len(self.input_spawns)
@@ -169,7 +202,13 @@ class Dataset_CARLA(Dataset):
             target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
                                                                                                               near=self.cfg.z_near, far=self.cfg.z_far)
             
-            # Adding 6 Ego Vehicle camera views 
+            # Filter sensor data based on configuration
+            context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices = self._filter_sensor_data(
+                context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices)
+            target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = self._filter_sensor_data(
+                target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices)
+            
+            # Adding selected Ego Vehicle camera views 
             for image_path, intrins, extrins in zip(context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices):
                 self.all_texture_context[example_id].append(image_path)
                 self.intrinsics_context[example_id].append(intrins)
@@ -178,7 +217,7 @@ class Dataset_CARLA(Dataset):
             self.intrinsics_context[example_id] = torch.stack(self.intrinsics_context[example_id]).cpu()
             self.extrinsics_context[example_id] = torch.stack(self.extrinsics_context[example_id]).cpu()
             
-            # Adding all target camera views 
+            # Adding selected target camera views 
             for image_path, intrins, extrins in zip(target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices):
                 self.all_texture_target[example_id].append(image_path)
                 self.intrinsics_target[example_id].append(intrins)
