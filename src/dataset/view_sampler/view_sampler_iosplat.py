@@ -72,6 +72,7 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
             # If not, then randomly select them
             else: # perform sanity check first and then create random indexes
                 assert self.cfg.num_target_views<=20 
+                #print('Checkpoint 1111111111111111111111111111111111 target_sample_weight', target_sample_weight, 'len(target_sample_weight)', len(target_sample_weight))
                 index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
                                                                  replace=False, p=target_sample_weight)).to(dtype=torch.int64)
         # Otherwise (training) will sample them randomly from 80 views

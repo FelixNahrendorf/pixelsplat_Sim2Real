@@ -43,7 +43,7 @@ class Dataset_SEED4DCfg(DatasetCfgCommon):
     z_far: float
     training_towns: List[str] = None  # Add training towns configuration
     testing_towns: List[str] = None   # Add testing towns configuration
-    #selected_sensors: Optional[List[int]] = None  # List of sensor indices to use
+    selected_sensors: Optional[List[int]] = None  # List of sensor indices to use
     #sensor_range: Optional[List[int]] = None  # Alternative: [start, end] range of sensors
 
 class Dataset_SEED4D(Dataset):
@@ -64,7 +64,7 @@ class Dataset_SEED4D(Dataset):
         self.to_tensor = tf.ToTensor()
         
         # Configure sensor selection
-        #self.sensor_indices = self._configure_sensor_selection()
+        self.sensor_indices = self._configure_sensor_selection()
         
         data_dir_naming = '/ClearNoon/vehicle.audi.tt/'
         
@@ -102,8 +102,8 @@ class Dataset_SEED4D(Dataset):
         self.output_spawns = np.array(self.output_images)
         
         # # Selected randomly to train just on a single spawn point
-        # self.input_spawns = np.array(self.input_images)[:10]
-        # self.output_spawns = np.array(self.output_images)[:10]
+        self.input_spawns = np.array(self.input_images)[:10]
+        self.output_spawns = np.array(self.output_images)[:10]
         
         # configuring relevant resolution for inward and outward facing cameras
         
@@ -118,15 +118,15 @@ class Dataset_SEED4D(Dataset):
         _ = [self.load_example_id(idx) for idx in range(0, len(self.input_spawns))]
         print(f"Carla Dataset, initialized for {self.stage} stage, will use # {len(self.input_spawns)} spawns with augmentation = {self.augment_flag}")
         print(f"Training towns: {training_towns}, Testing towns: {testing_towns}")
-        #print(f"Selected sensors: {self.sensor_indices}")
+        print(f"Selected sensors: {self.sensor_indices}")
     
-    '''def _configure_sensor_selection(self) -> List[int]:
+    def _configure_sensor_selection(self) -> List[int]:
         """Configure which sensors to use based on configuration."""
         if self.cfg.selected_sensors is not None:
             # Use explicitly specified sensor list
             sensor_indices = self.cfg.selected_sensors
             print(f"Using explicitly selected sensors: {sensor_indices}")
-        elif self.cfg.sensor_range is not None:
+        elif hasattr(self.cfg, 'sensor_range') and self.cfg.sensor_range is not None:
             # Use sensor range [start, end] (inclusive)
             start, end = self.cfg.sensor_range
             sensor_indices = list(range(start, end + 1))
@@ -137,20 +137,16 @@ class Dataset_SEED4D(Dataset):
             print(f"Using default sensors (all): {sensor_indices}")
         
         return sensor_indices
-    '''
-    #def _filter_sensor_data(self, image_paths: List[str], intrinsics: List[torch.Tensor], 
-    #                       extrinsics: List[torch.Tensor]) -> tuple:
-    #    """Filter sensor data based on selected sensor indices."""
-
-    '''
-    def _filter_sensor_data(self, image_paths: List[str], intrinsics: torch.Tensor, extrinsics: torch.Tensor) -> tuple:
-        print('checkpoint AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'len(image_paths)', len(image_paths),'len(intrinsics)',len(intrinsics), 'len(extrinsics)',len(extrinsics))
+    
+    def _filter_context_sensor_data(self, image_paths: List[str], intrinsics: torch.Tensor, extrinsics: torch.Tensor) -> tuple:
+        """Filter CONTEXT sensor data based on selected sensor indices. Only applies to ego vehicle sensors."""
+        print('Filtering context sensors - Original count:', len(image_paths))
         filtered_image_paths = [image_paths[i] for i in self.sensor_indices if i < len(image_paths)]
         filtered_intrinsics = [intrinsics[i] for i in self.sensor_indices if i < len(intrinsics)]
         filtered_extrinsics = [extrinsics[i] for i in self.sensor_indices if i < len(extrinsics)]
-        print('checkpoint BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', 'len(filtered_image_paths)', len(filtered_image_paths),'len(filtered_intrinsics)',len(filtered_intrinsics), 'len(extrinsics)',len(filtered_extrinsics))
+        print('Filtering context sensors - Filtered count:', len(filtered_image_paths))
         return filtered_image_paths, filtered_intrinsics, filtered_extrinsics
-    '''
+    
     def __len__(self):
         return len(self.input_spawns)
     
@@ -177,8 +173,6 @@ class Dataset_SEED4D(Dataset):
         
         input_transforms = self.input_spawns[index]
         output_transforms = self.output_spawns[index]
-        #print('Checkpoint CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC input_transforms', input_transforms)
-        #print('Checkpoint DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD output_transforms', output_transforms)
         
         if not hasattr(self, "all_texture_context"):
             
@@ -207,13 +201,14 @@ class Dataset_SEED4D(Dataset):
                                                                                                                  near=self.cfg.z_near, far=self.cfg.z_far)
             target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
                                                                                                               near=self.cfg.z_near, far=self.cfg.z_far)
-            '''
-            # Filter sensor data based on configuration
-            context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices = self._filter_sensor_data(
+            
+            # Filter ONLY context sensor data (ego vehicle sensors) - NOT target views
+            context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices = self._filter_context_sensor_data(
                 context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices)
-            target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = self._filter_sensor_data(
-                target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices)
-            '''
+            
+            # Target views are NOT filtered - they remain as the full set of spherical/target views
+            # (target views are different camera viewpoints, not ego vehicle sensors)
+            
             # Adding selected Ego Vehicle camera views 
             for image_path, intrins, extrins in zip(context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices):
                 self.all_texture_context[example_id].append(image_path)
@@ -223,7 +218,7 @@ class Dataset_SEED4D(Dataset):
             self.intrinsics_context[example_id] = torch.stack(self.intrinsics_context[example_id]).cpu()
             self.extrinsics_context[example_id] = torch.stack(self.extrinsics_context[example_id]).cpu()
             
-            # Adding selected target camera views 
+            # Adding ALL target camera views (no filtering applied)
             for image_path, intrins, extrins in zip(target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices):
                 self.all_texture_target[example_id].append(image_path)
                 self.intrinsics_target[example_id].append(intrins)
