@@ -177,8 +177,8 @@ class Dataset_SEED4D(Dataset):
         
         input_transforms = self.input_spawns[index]
         output_transforms = self.output_spawns[index]
-        print('Checkpoint CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC input_transforms', input_transforms)
-        print('Checkpoint DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD output_transforms', output_transforms)
+        #print('Checkpoint CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC input_transforms', input_transforms)
+        #print('Checkpoint DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD output_transforms', output_transforms)
         
         if not hasattr(self, "all_texture_context"):
             

@@ -13,21 +13,14 @@ def readPixelSplatCamera(transform_path, resolution = None, near = 0.0, far = 70
     # first read the transforms file for cameras
     with open(transform_path, 'r') as f: 
         jsonData = json.load(f)
-    print('Checkpoint LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL  transform_path:', transform_path)
     image_paths = []
     pose_bounds = []
     base_image_dir = transform_path[:transform_path.rfind('/', 0, transform_path.rfind('/'))]
-    print('Checkpoint IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII base_image_dir', base_image_dir)
-    print('Checkpoint HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH jsonData[frames]', jsonData['frames'])
     for frame_dicts in jsonData['frames']:
-        print ('Checkpoint GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG frame_dicts:', frame_dicts)
         #frame_image_path = base_image_dir + '/' + frame_dicts['file_path'][2:]
         frame_image_path = base_image_dir + frame_dicts['file_path'][2:]
-        frame_image_path = (base_image_dir + frame_dicts['file_path'][2:]).replace("images", "sensors")
-        print('Checkpoint KKKKKKKKKKKKKKKKKKKK frame_dicts[file_path][:],frame_dicts[file_path][2:]', frame_dicts['file_path'][:],frame_dicts['file_path'][2:])
-        print(f"Checkpoint EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE Reading image: {frame_image_path}")
+        #frame_image_path = (base_image_dir + frame_dicts['file_path'][2:]).replace("images", "sensors")
         image_paths.append(frame_image_path)
-        print(f"Checkpoint FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF path image: {image_paths}")
         # Handle different JSON formats for camera intrinsics
         # Check if intrinsics are stored per-frame (new format) or at root level (old format)
         if 'fl_x' in frame_dicts:
