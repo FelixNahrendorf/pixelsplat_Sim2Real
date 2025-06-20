@@ -163,84 +163,98 @@ class ModelWrapper(LightningModule):
 
         return total_loss
     
-    def test_step(self, batch, batch_idx):
-        batch: BatchedExample = self.data_shim(batch)
-        b, v, _, h, w = batch["target"]["image"].shape
-        assert b == 1
-        start_time = time.time()
-        # Render Gaussians.
-        with self.benchmarker.time("encoder"):
-            gaussians = self.encoder(
-                batch["context"],
-                self.global_step,
-                deterministic=False,
-            )
-        with self.benchmarker.time("decoder", num_calls=v):
-            output = self.decoder.forward(
-                gaussians,
-                batch["target"]["extrinsics"],
-                batch["target"]["intrinsics"],
-                batch["target"]["near"],
-                batch["target"]["far"],
-                (h, w),
-                depth_mode="depth",
-            )
-        compute_time = time.time()-start_time
-        (scene,) = (batch["scene"][0] + "_" + str(batch_idx),)
-        name = get_cfg()["wandb"]["name"]
-        path = self.test_cfg.output_path / name
-        images_prob = output.color[0]
-        depth_prop = output.depth[0].unsqueeze(1)
-        rgb_gt = batch["target"]["image"][0]
-        depth_gt = batch["target"]["depth"][0]
+def test_step(self, batch, batch_idx):
+    batch: BatchedExample = self.data_shim(batch)
+    b, v, _, h, w = batch["target"]["image"].shape
+    assert b == 1
+    start_time = time.time()
+    # Render Gaussians.
+    with self.benchmarker.time("encoder"):
+        gaussians = self.encoder(
+            batch["context"],
+            self.global_step,
+            deterministic=False,
+        )
+    with self.benchmarker.time("decoder", num_calls=v):
+        output = self.decoder.forward(
+            gaussians,
+            batch["target"]["extrinsics"],
+            batch["target"]["intrinsics"],
+            batch["target"]["near"],
+            batch["target"]["far"],
+            (h, w),
+            depth_mode="depth",
+        )
+    compute_time = time.time()-start_time
+    (scene,) = (batch["scene"][0] + "_" + str(batch_idx),)
+    name = get_cfg()["wandb"]["name"]
+    path = self.test_cfg.output_path / name
+    images_prob = output.color[0]
+    depth_prop = output.depth[0].unsqueeze(1)
+    rgb_gt = batch["target"]["image"][0]
+    depth_gt = batch["target"]["depth"][0]
+    
+    # Get reference (context) images
+    reference_images = batch["context"]["image"][0]
 
-        # Save images.
-        if self.test_cfg.save_image:
-            for index, color in zip(batch["target"]["index"][0], images_prob):
-                save_image(color, path / scene / f"color/{index:0>6}.png")
-            for index, depth_map in zip(batch["target"]["index"][0], depth_prop):
-                save_image(depth_map.squeeze(0)/60, path / scene / f"depth/{index:0>6}.png")
+    # Save images.
+    if self.test_cfg.save_image:
+        # Save rendered color images
+        for index, color in zip(batch["target"]["index"][0], images_prob):
+            save_image(color, path / scene / f"color/{index:0>6}.png")
         
-        # save video
-        if self.test_cfg.save_video:
-            frame_str = "_".join([str(x.item()) for x in batch["context"]["index"][0]])
-            save_video(
-                [a for a in images_prob],
-                path / "video" / f"{scene}_frame_{frame_str}.mp4",
-            )
+        # Save rendered depth images
+        for index, depth_map in zip(batch["target"]["index"][0], depth_prop):
+            save_image(depth_map.squeeze(0)/60, path / scene / f"depth/{index:0>6}.png")
+        
+        # Save reference (context) images
+        for index, reference_img in zip(batch["context"]["index"][0], reference_images):
+            save_image(reference_img, path / scene / f"reference/{index:0>6}.png")
+        
+        # Save target (ground truth) images
+        for index, target_img in zip(batch["target"]["index"][0], rgb_gt):
+            save_image(target_img, path / scene / f"target/{index:0>6}.png")
+    
+    # save video
+    if self.test_cfg.save_video:
+        frame_str = "_".join([str(x.item()) for x in batch["context"]["index"][0]])
+        save_video(
+            [a for a in images_prob],
+            path / "video" / f"{scene}_frame_{frame_str}.mp4",
+        )
 
-        # compute scores
-        if self.test_cfg.compute_scores:
-            if batch_idx < self.test_cfg.eval_time_skip_steps:
-                self.time_skip_steps_dict["encoder"] += 1
-                self.time_skip_steps_dict["decoder"] += v
-            rgb = images_prob
+    # compute scores
+    if self.test_cfg.compute_scores:
+        if batch_idx < self.test_cfg.eval_time_skip_steps:
+            self.time_skip_steps_dict["encoder"] += 1
+            self.time_skip_steps_dict["decoder"] += v
+        rgb = images_prob
 
-            if f"psnr" not in self.test_step_outputs:
-                self.test_step_outputs[f"psnr"] = []
-            if f"ssim" not in self.test_step_outputs:
-                self.test_step_outputs[f"ssim"] = []
-            if f"lpips" not in self.test_step_outputs:
-                self.test_step_outputs[f"lpips"] = []
-            if f"drmse" not in self.test_step_outputs:
-                self.test_step_outputs[f"drmse"] = []
-            if f"compute_time" not in self.test_step_outputs:
-                self.test_step_outputs[f"compute_time"] = []
+        if f"psnr" not in self.test_step_outputs:
+            self.test_step_outputs[f"psnr"] = []
+        if f"ssim" not in self.test_step_outputs:
+            self.test_step_outputs[f"ssim"] = []
+        if f"lpips" not in self.test_step_outputs:
+            self.test_step_outputs[f"lpips"] = []
+        if f"drmse" not in self.test_step_outputs:
+            self.test_step_outputs[f"drmse"] = []
+        if f"compute_time" not in self.test_step_outputs:
+            self.test_step_outputs[f"compute_time"] = []
 
-            self.test_step_outputs[f"psnr"].append(
-                compute_psnr(rgb_gt, rgb).mean().item()
-            )
-            self.test_step_outputs[f"ssim"].append(
-                compute_ssim(rgb_gt, rgb).mean().item()
-            )
-            self.test_step_outputs[f"lpips"].append(
-                compute_lpips(rgb_gt, rgb).mean().item()
-            )
-            self.test_step_outputs[f"compute_time"].append(compute_time)
-            self.test_step_outputs[f"drmse"].append(
-                torch.sqrt(compute_depth_mse(depth_gt.clamp(min=0.0, max=60.0),
-                                             depth_prop.clamp(min=0.0, max=60.0), 
-                                             output_color=rgb.clamp(min=0.0, max=1.0))).item())
+        self.test_step_outputs[f"psnr"].append(
+            compute_psnr(rgb_gt, rgb).mean().item()
+        )
+        self.test_step_outputs[f"ssim"].append(
+            compute_ssim(rgb_gt, rgb).mean().item()
+        )
+        self.test_step_outputs[f"lpips"].append(
+            compute_lpips(rgb_gt, rgb).mean().item()
+        )
+        self.test_step_outputs[f"compute_time"].append(compute_time)
+        self.test_step_outputs[f"drmse"].append(
+            torch.sqrt(compute_depth_mse(depth_gt.clamp(min=0.0, max=60.0),
+                                         depth_prop.clamp(min=0.0, max=60.0), 
+                                         output_color=rgb.clamp(min=0.0, max=1.0))).item())
 
     def on_test_end(self) -> None:
         name = get_cfg()["wandb"]["name"]
@@ -268,7 +282,7 @@ class ModelWrapper(LightningModule):
 
             with (out_dir / f"scores_all_avg.json").open("w") as f:
                 json.dump(saved_scores, f)
-            self.benchmarker.clear_history()
+            #self.benchmarker.clear_history() #not implemented in Benchmarker
         else:
             self.benchmarker.dump(self.test_cfg.output_path / name / "benchmark.json")
             self.benchmarker.dump_memory(
