@@ -9,7 +9,7 @@ defaults:
   #- loss: [mse, mae] #seed4d
 
 wandb:
-  project: pixelsplat_nuScene_td3_test #nuscene 
+  project: pixelsplat_nuScene_td4_test #nuscene 
   #project: pixelsplat_mae_test #carla
   #project: pixelsplat_mae_test_seed4d #seed4d
   entity: scene-representation-group
@@ -60,7 +60,7 @@ test:
   #output_path: outputs/test/nuscenes_td1 #nuscene 
   #output_path: outputs/test/carla #carla
   #output_path: outputs/test/seed4d #seed4d
-  output_path: outputs/test/carla_on_nuscene_0shot_td3
+  output_path: outputs/test/carla_on_nuscene_0shot_td4_2
   compute_scores: false
   save_image: true
   save_video: true
