@@ -163,98 +163,196 @@ class ModelWrapper(LightningModule):
 
         return total_loss
     
-def test_step(self, batch, batch_idx):
-    batch: BatchedExample = self.data_shim(batch)
-    b, v, _, h, w = batch["target"]["image"].shape
-    assert b == 1
-    start_time = time.time()
-    # Render Gaussians.
-    with self.benchmarker.time("encoder"):
-        gaussians = self.encoder(
-            batch["context"],
-            self.global_step,
-            deterministic=False,
-        )
-    with self.benchmarker.time("decoder", num_calls=v):
-        output = self.decoder.forward(
-            gaussians,
-            batch["target"]["extrinsics"],
-            batch["target"]["intrinsics"],
-            batch["target"]["near"],
-            batch["target"]["far"],
-            (h, w),
-            depth_mode="depth",
-        )
-    compute_time = time.time()-start_time
-    (scene,) = (batch["scene"][0] + "_" + str(batch_idx),)
-    name = get_cfg()["wandb"]["name"]
-    path = self.test_cfg.output_path / name
-    images_prob = output.color[0]
-    depth_prop = output.depth[0].unsqueeze(1)
-    rgb_gt = batch["target"]["image"][0]
-    depth_gt = batch["target"]["depth"][0]
+    def create_concatenated_image(self, scene_path, reference_images, color_images, target_images, depth_images):
+        """Create a concatenated image with four horizontal rows stacked vertically."""
+        try:
+            # Convert tensors to numpy arrays and ensure they're in the right format
+            def tensor_to_image_array(tensor_list):
+                images = []
+                for tensor in tensor_list:
+                    if isinstance(tensor, torch.Tensor):
+                        # Convert to numpy and ensure range [0, 1]
+                        img = tensor.detach().cpu().numpy()
+                        if img.max() > 1.0:
+                            img = img / 255.0
+                        # Ensure shape is (H, W, C)
+                        if len(img.shape) == 3 and img.shape[0] in [1, 3]:
+                            img = np.transpose(img, (1, 2, 0))
+                        # Convert grayscale to RGB if needed
+                        if len(img.shape) == 3 and img.shape[2] == 1:
+                            img = np.repeat(img, 3, axis=2)
+                        elif len(img.shape) == 2:
+                            img = np.stack([img] * 3, axis=2)
+                        images.append(img)
+                return images
+            
+            # Convert all image sets to numpy arrays
+            ref_arrays = tensor_to_image_array(reference_images)
+            color_arrays = tensor_to_image_array(color_images)
+            target_arrays = tensor_to_image_array(target_images)
+            depth_arrays = tensor_to_image_array(depth_images)
+            
+            # Ensure all arrays have the same height and width
+            if not (ref_arrays and color_arrays and target_arrays and depth_arrays):
+                print(f"Warning: Empty image arrays for scene {scene_path}")
+                return
+            
+            # Get dimensions from first image
+            h, w = ref_arrays[0].shape[:2]
+            
+            # Resize all images to match the first image dimensions
+            def resize_images(img_list, target_h, target_w):
+                resized = []
+                for img in img_list:
+                    if img.shape[:2] != (target_h, target_w):
+                        # Simple resize using numpy (bilinear-like interpolation)
+                        from scipy.ndimage import zoom
+                        zoom_factors = (target_h / img.shape[0], target_w / img.shape[1], 1)
+                        img = zoom(img, zoom_factors, order=1)
+                    resized.append(img)
+                return resized
+            
+            try:
+                from scipy.ndimage import zoom
+                ref_arrays = resize_images(ref_arrays, h, w)
+                color_arrays = resize_images(color_arrays, h, w)
+                target_arrays = resize_images(target_arrays, h, w)
+                depth_arrays = resize_images(depth_arrays, h, w)
+            except ImportError:
+                print("Warning: scipy not available, skipping image resizing")
+            
+            # Create horizontal concatenations
+            ref_row = np.concatenate(ref_arrays, axis=1) if ref_arrays else np.zeros((h, w, 3))
+            color_row = np.concatenate(color_arrays, axis=1) if color_arrays else np.zeros((h, w, 3))
+            target_row = np.concatenate(target_arrays, axis=1) if target_arrays else np.zeros((h, w, 3))
+            depth_row = np.concatenate(depth_arrays, axis=1) if depth_arrays else np.zeros((h, w, 3))
+            
+            # Stack vertically
+            final_image = np.concatenate([ref_row, color_row, target_row, depth_row], axis=0)
+            
+            # Convert back to tensor and save
+            final_tensor = torch.from_numpy(final_image).permute(2, 0, 1).float()
+            
+            # Save the concatenated image
+            concat_path = scene_path / "concatenated_view.png"
+            save_image(final_tensor, concat_path)
+            print(f"Saved concatenated image to {concat_path}")
+            
+        except Exception as e:
+            print(f"Error creating concatenated image for {scene_path}: {e}")
     
-    # Get reference (context) images
-    reference_images = batch["context"]["image"][0]
-
-    # Save images.
-    if self.test_cfg.save_image:
-        # Save rendered color images
-        for index, color in zip(batch["target"]["index"][0], images_prob):
-            save_image(color, path / scene / f"color/{index:0>6}.png")
+    def test_step(self, batch, batch_idx):
+        batch: BatchedExample = self.data_shim(batch)
+        b, v, _, h, w = batch["target"]["image"].shape
+        assert b == 1
+        start_time = time.time()
+        # Render Gaussians.
+        with self.benchmarker.time("encoder"):
+            gaussians = self.encoder(
+                batch["context"],
+                self.global_step,
+                deterministic=False,
+            )
+        with self.benchmarker.time("decoder", num_calls=v):
+            output = self.decoder.forward(
+                gaussians,
+                batch["target"]["extrinsics"],
+                batch["target"]["intrinsics"],
+                batch["target"]["near"],
+                batch["target"]["far"],
+                (h, w),
+                depth_mode="depth",
+            )
+        compute_time = time.time()-start_time
+        (scene,) = (batch["scene"][0] + "_" + str(batch_idx),)
+        name = get_cfg()["wandb"]["name"]
+        path = self.test_cfg.output_path / name
+        images_prob = output.color[0]
+        depth_prop = output.depth[0].unsqueeze(1)
+        rgb_gt = batch["target"]["image"][0]
+        depth_gt = batch["target"]["depth"][0]
         
-        # Save rendered depth images
-        for index, depth_map in zip(batch["target"]["index"][0], depth_prop):
-            save_image(depth_map.squeeze(0)/60, path / scene / f"depth/{index:0>6}.png")
+        # Get reference (context) images
+        reference_images = batch["context"]["image"][0]
+
+        # Lists to store images for concatenation
+        saved_reference_images = []
+        saved_color_images = []
+        saved_target_images = []
+        saved_depth_images = []
+
+        # Save images.
+        if self.test_cfg.save_image:
+            # Save rendered color images
+            for index, color in zip(batch["target"]["index"][0], images_prob):
+                save_image(color, path / scene / f"color/{index:0>6}.png")
+                saved_color_images.append(color)
+            
+            # Save rendered depth images
+            for index, depth_map in zip(batch["target"]["index"][0], depth_prop):
+                save_image(depth_map.squeeze(0)/60, path / scene / f"depth/{index:0>6}.png")
+                saved_depth_images.append(depth_map.squeeze(0)/60)
+            
+            # Save reference (context) images
+            for index, reference_img in zip(batch["context"]["index"][0], reference_images):
+                save_image(reference_img, path / scene / f"reference/{index:0>6}.png")
+                saved_reference_images.append(reference_img)
+            
+            # Save target (ground truth) images
+            for index, target_img in zip(batch["target"]["index"][0], rgb_gt):
+                save_image(target_img, path / scene / f"target/{index:0>6}.png")
+                saved_target_images.append(target_img)
+            
+            # Create concatenated image
+            scene_path = path / scene
+            self.create_concatenated_image(
+                scene_path,
+                saved_reference_images,
+                saved_color_images, 
+                saved_target_images,
+                saved_depth_images
+            )
         
-        # Save reference (context) images
-        for index, reference_img in zip(batch["context"]["index"][0], reference_images):
-            save_image(reference_img, path / scene / f"reference/{index:0>6}.png")
-        
-        # Save target (ground truth) images
-        for index, target_img in zip(batch["target"]["index"][0], rgb_gt):
-            save_image(target_img, path / scene / f"target/{index:0>6}.png")
-    
-    # save video
-    if self.test_cfg.save_video:
-        frame_str = "_".join([str(x.item()) for x in batch["context"]["index"][0]])
-        save_video(
-            [a for a in images_prob],
-            path / "video" / f"{scene}_frame_{frame_str}.mp4",
-        )
+        # save video
+        if self.test_cfg.save_video:
+            frame_str = "_".join([str(x.item()) for x in batch["context"]["index"][0]])
+            save_video(
+                [a for a in images_prob],
+                path / "video" / f"{scene}_frame_{frame_str}.mp4",
+            )
 
-    # compute scores
-    if self.test_cfg.compute_scores:
-        if batch_idx < self.test_cfg.eval_time_skip_steps:
-            self.time_skip_steps_dict["encoder"] += 1
-            self.time_skip_steps_dict["decoder"] += v
-        rgb = images_prob
+        # compute scores
+        if self.test_cfg.compute_scores:
+            if batch_idx < self.test_cfg.eval_time_skip_steps:
+                self.time_skip_steps_dict["encoder"] += 1
+                self.time_skip_steps_dict["decoder"] += v
+            rgb = images_prob
 
-        if f"psnr" not in self.test_step_outputs:
-            self.test_step_outputs[f"psnr"] = []
-        if f"ssim" not in self.test_step_outputs:
-            self.test_step_outputs[f"ssim"] = []
-        if f"lpips" not in self.test_step_outputs:
-            self.test_step_outputs[f"lpips"] = []
-        if f"drmse" not in self.test_step_outputs:
-            self.test_step_outputs[f"drmse"] = []
-        if f"compute_time" not in self.test_step_outputs:
-            self.test_step_outputs[f"compute_time"] = []
+            if f"psnr" not in self.test_step_outputs:
+                self.test_step_outputs[f"psnr"] = []
+            if f"ssim" not in self.test_step_outputs:
+                self.test_step_outputs[f"ssim"] = []
+            if f"lpips" not in self.test_step_outputs:
+                self.test_step_outputs[f"lpips"] = []
+            if f"drmse" not in self.test_step_outputs:
+                self.test_step_outputs[f"drmse"] = []
+            if f"compute_time" not in self.test_step_outputs:
+                self.test_step_outputs[f"compute_time"] = []
 
-        self.test_step_outputs[f"psnr"].append(
-            compute_psnr(rgb_gt, rgb).mean().item()
-        )
-        self.test_step_outputs[f"ssim"].append(
-            compute_ssim(rgb_gt, rgb).mean().item()
-        )
-        self.test_step_outputs[f"lpips"].append(
-            compute_lpips(rgb_gt, rgb).mean().item()
-        )
-        self.test_step_outputs[f"compute_time"].append(compute_time)
-        self.test_step_outputs[f"drmse"].append(
-            torch.sqrt(compute_depth_mse(depth_gt.clamp(min=0.0, max=60.0),
-                                         depth_prop.clamp(min=0.0, max=60.0), 
-                                         output_color=rgb.clamp(min=0.0, max=1.0))).item())
+            self.test_step_outputs[f"psnr"].append(
+                compute_psnr(rgb_gt, rgb).mean().item()
+            )
+            self.test_step_outputs[f"ssim"].append(
+                compute_ssim(rgb_gt, rgb).mean().item()
+            )
+            self.test_step_outputs[f"lpips"].append(
+                compute_lpips(rgb_gt, rgb).mean().item()
+            )
+            self.test_step_outputs[f"compute_time"].append(compute_time)
+            self.test_step_outputs[f"drmse"].append(
+                torch.sqrt(compute_depth_mse(depth_gt.clamp(min=0.0, max=60.0),
+                                            depth_prop.clamp(min=0.0, max=60.0), 
+                                            output_color=rgb.clamp(min=0.0, max=1.0))).item())
 
     def on_test_end(self) -> None:
         name = get_cfg()["wandb"]["name"]
