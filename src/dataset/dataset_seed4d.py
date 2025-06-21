@@ -77,24 +77,24 @@ class Dataset_SEED4D(Dataset):
             self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
-            self.input_images = [spawn_dir + '/nuscenes/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            self.output_images = [spawn_dir + '/sphere/transforms/transforms_ego_train.json' for spawn_dir in self.spawn_dirs]
+            self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_train.json' for spawn_dir in self.spawn_dirs]
             
         elif (self.stage == 'val'): # val stands for validation
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns]
             self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
-            self.input_images = [spawn_dir + '/nuscenes/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            self.output_images = [spawn_dir + '/sphere/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+            self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
             
         elif (self.stage == 'test'): # val stands for validation
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in testing_towns]
             self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
-            self.input_images = [spawn_dir + '/nuscenes/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            self.output_images = [spawn_dir + '/sphere/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+            self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
             
         else: raise ValueError("Trying to call dataset class for other purposes is not allowed")
         
