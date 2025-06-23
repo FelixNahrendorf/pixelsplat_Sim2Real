@@ -164,149 +164,149 @@ class ModelWrapper(LightningModule):
         return total_loss
     
     def create_concatenated_image(self, scene_path, reference_images, color_images, target_images, depth_images):
-    """Create a concatenated image with four horizontal rows stacked vertically."""
-    try:
-        # Convert tensors to numpy arrays and ensure they're in the right format
-        def tensor_to_image_array(tensor_list):
-            images = []
-            for tensor in tensor_list:
-                if isinstance(tensor, torch.Tensor):
-                    # Convert to numpy and ensure range [0, 1]
-                    img = tensor.detach().cpu().numpy()
-                    if img.max() > 1.0:
-                        img = img / 255.0
-                    # Ensure shape is (H, W, C)
-                    if len(img.shape) == 3 and img.shape[0] in [1, 3]:
-                        img = np.transpose(img, (1, 2, 0))
-                    # Convert grayscale to RGB if needed
-                    if len(img.shape) == 3 and img.shape[2] == 1:
-                        img = np.repeat(img, 3, axis=2)
-                    elif len(img.shape) == 2:
-                        img = np.stack([img] * 3, axis=2)
-                    images.append(img)
-            return images
-        
-        # Convert all image sets to numpy arrays
-        ref_arrays = tensor_to_image_array(reference_images)
-        color_arrays = tensor_to_image_array(color_images)
-        target_arrays = tensor_to_image_array(target_images)
-        depth_arrays = tensor_to_image_array(depth_images)
-        
-        # Check if any arrays are empty
-        if not (ref_arrays and color_arrays and target_arrays and depth_arrays):
-            print(f"Warning: Empty image arrays for scene {scene_path}")
-            return
-        
-        # Find the maximum number of images across all types
-        max_images = max(len(ref_arrays), len(color_arrays), len(target_arrays), len(depth_arrays))
-        
-        # Get dimensions - use the first available image from any array
-        sample_img = None
-        for img_list in [ref_arrays, color_arrays, target_arrays, depth_arrays]:
-            if img_list:
-                sample_img = img_list[0]
-                break
-        
-        if sample_img is None:
-            print(f"Warning: No valid images found for scene {scene_path}")
-            return
-            
-        target_h, target_w = sample_img.shape[:2]
-        
-        # Resize all images to match target dimensions
-        def resize_images(img_list, target_h, target_w):
-            resized = []
-            for img in img_list:
-                if img.shape[:2] != (target_h, target_w):
-                    try:
-                        from scipy.ndimage import zoom
-                        zoom_factors = (target_h / img.shape[0], target_w / img.shape[1], 1)
-                        img = zoom(img, zoom_factors, order=1)
-                    except ImportError:
-                        # Fallback: use simple numpy interpolation
-                        import cv2
-                        img = cv2.resize(img, (target_w, target_h))
-                resized.append(img)
-            return resized
-        
-        # Resize all images
+        """Create a concatenated image with four horizontal rows stacked vertically."""
         try:
-            ref_arrays = resize_images(ref_arrays, target_h, target_w)
-            color_arrays = resize_images(color_arrays, target_h, target_w)
-            target_arrays = resize_images(target_arrays, target_h, target_w)
-            depth_arrays = resize_images(depth_arrays, target_h, target_w)
-        except Exception as e:
-            print(f"Warning: Could not resize images for {scene_path}: {e}")
-            return
-        
-        # Helper function to create a black image with white text
-        def create_empty_list_image(target_h, target_w, list_name):
-            # Create black image
-            img = np.zeros((target_h, target_w, 3), dtype=np.float32)
+            # Convert tensors to numpy arrays and ensure they're in the right format
+            def tensor_to_image_array(tensor_list):
+                images = []
+                for tensor in tensor_list:
+                    if isinstance(tensor, torch.Tensor):
+                        # Convert to numpy and ensure range [0, 1]
+                        img = tensor.detach().cpu().numpy()
+                        if img.max() > 1.0:
+                            img = img / 255.0
+                        # Ensure shape is (H, W, C)
+                        if len(img.shape) == 3 and img.shape[0] in [1, 3]:
+                            img = np.transpose(img, (1, 2, 0))
+                        # Convert grayscale to RGB if needed
+                        if len(img.shape) == 3 and img.shape[2] == 1:
+                            img = np.repeat(img, 3, axis=2)
+                        elif len(img.shape) == 2:
+                            img = np.stack([img] * 3, axis=2)
+                        images.append(img)
+                return images
             
+            # Convert all image sets to numpy arrays
+            ref_arrays = tensor_to_image_array(reference_images)
+            color_arrays = tensor_to_image_array(color_images)
+            target_arrays = tensor_to_image_array(target_images)
+            depth_arrays = tensor_to_image_array(depth_images)
+            
+            # Check if any arrays are empty
+            if not (ref_arrays and color_arrays and target_arrays and depth_arrays):
+                print(f"Warning: Empty image arrays for scene {scene_path}")
+                return
+            
+            # Find the maximum number of images across all types
+            max_images = max(len(ref_arrays), len(color_arrays), len(target_arrays), len(depth_arrays))
+            
+            # Get dimensions - use the first available image from any array
+            sample_img = None
+            for img_list in [ref_arrays, color_arrays, target_arrays, depth_arrays]:
+                if img_list:
+                    sample_img = img_list[0]
+                    break
+            
+            if sample_img is None:
+                print(f"Warning: No valid images found for scene {scene_path}")
+                return
+                
+            target_h, target_w = sample_img.shape[:2]
+            
+            # Resize all images to match target dimensions
+            def resize_images(img_list, target_h, target_w):
+                resized = []
+                for img in img_list:
+                    if img.shape[:2] != (target_h, target_w):
+                        try:
+                            from scipy.ndimage import zoom
+                            zoom_factors = (target_h / img.shape[0], target_w / img.shape[1], 1)
+                            img = zoom(img, zoom_factors, order=1)
+                        except ImportError:
+                            # Fallback: use simple numpy interpolation
+                            import cv2
+                            img = cv2.resize(img, (target_w, target_h))
+                    resized.append(img)
+                return resized
+            
+            # Resize all images
             try:
-                import cv2
-                # Add white text "list empty"
-                text = f"{list_name} empty"
-                font = cv2.FONT_HERSHEY_SIMPLEX
-                font_scale = min(target_h, target_w) / 400.0  # Scale font based on image size
-                color = (1.0, 1.0, 1.0)  # White color in [0,1] range
-                thickness = max(1, int(font_scale * 2))
-                
-                # Get text size to center it
-                text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
-                text_x = (target_w - text_size[0]) // 2
-                text_y = (target_h + text_size[1]) // 2
-                
-                cv2.putText(img, text, (text_x, text_y), font, font_scale, color, thickness)
-            except ImportError:
-                # Fallback: just return black image if cv2 not available
-                pass
+                ref_arrays = resize_images(ref_arrays, target_h, target_w)
+                color_arrays = resize_images(color_arrays, target_h, target_w)
+                target_arrays = resize_images(target_arrays, target_h, target_w)
+                depth_arrays = resize_images(depth_arrays, target_h, target_w)
+            except Exception as e:
+                print(f"Warning: Could not resize images for {scene_path}: {e}")
+                return
             
-            return img
-        
-        # Pad arrays to have the same number of images
-        def pad_image_list(img_list, target_count, target_h, target_w, list_name):
-            if len(img_list) == 0:
-                # Create black images with "list empty" text if list is empty
-                empty_img = create_empty_list_image(target_h, target_w, list_name)
-                return [empty_img.copy() for _ in range(target_count)]
-            elif len(img_list) < target_count:
-                # Repeat the last image to fill the gap
-                last_img = img_list[-1]
-                img_list.extend([last_img.copy() for _ in range(target_count - len(img_list))])
-            elif len(img_list) > target_count:
-                # Truncate to target count
-                img_list = img_list[:target_count]
-            return img_list
-        
-        # Ensure all arrays have the same number of images
-        ref_arrays = pad_image_list(ref_arrays, max_images, target_h, target_w, "reference")
-        color_arrays = pad_image_list(color_arrays, max_images, target_h, target_w, "color")
-        target_arrays = pad_image_list(target_arrays, max_images, target_h, target_w, "target")
-        depth_arrays = pad_image_list(depth_arrays, max_images, target_h, target_w, "depth")
-        
-        # Create horizontal concatenations
-        ref_row = np.concatenate(ref_arrays, axis=1) if ref_arrays else np.zeros((target_h, target_w, 3))
-        color_row = np.concatenate(color_arrays, axis=1) if color_arrays else np.zeros((target_h, target_w, 3))
-        target_row = np.concatenate(target_arrays, axis=1) if target_arrays else np.zeros((target_h, target_w, 3))
-        depth_row = np.concatenate(depth_arrays, axis=1) if depth_arrays else np.zeros((target_h, target_w, 3))
-        
-        # Stack vertically
-        final_image = np.concatenate([ref_row, color_row, target_row, depth_row], axis=0)
-        
-        # Convert back to tensor and save
-        final_tensor = torch.from_numpy(final_image).permute(2, 0, 1).float()
-        
-        # Save the concatenated image
-        concat_path = scene_path / "concatenated_view.png"
-        save_image(final_tensor, concat_path)
-        print(f"Saved concatenated image to {concat_path}")
-        
-    except Exception as e:
-        print(f"Error creating concatenated image for {scene_path}: {e}")
-        import traceback
-        traceback.print_exc()
+            # Helper function to create a black image with white text
+            def create_empty_list_image(target_h, target_w, list_name):
+                # Create black image
+                img = np.zeros((target_h, target_w, 3), dtype=np.float32)
+                
+                try:
+                    import cv2
+                    # Add white text "list empty"
+                    text = f"{list_name} empty"
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    font_scale = min(target_h, target_w) / 400.0  # Scale font based on image size
+                    color = (1.0, 1.0, 1.0)  # White color in [0,1] range
+                    thickness = max(1, int(font_scale * 2))
+                    
+                    # Get text size to center it
+                    text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
+                    text_x = (target_w - text_size[0]) // 2
+                    text_y = (target_h + text_size[1]) // 2
+                    
+                    cv2.putText(img, text, (text_x, text_y), font, font_scale, color, thickness)
+                except ImportError:
+                    # Fallback: just return black image if cv2 not available
+                    pass
+                
+                return img
+            
+            # Pad arrays to have the same number of images
+            def pad_image_list(img_list, target_count, target_h, target_w, list_name):
+                if len(img_list) == 0:
+                    # Create black images with "list empty" text if list is empty
+                    empty_img = create_empty_list_image(target_h, target_w, list_name)
+                    return [empty_img.copy() for _ in range(target_count)]
+                elif len(img_list) < target_count:
+                    # Repeat the last image to fill the gap
+                    last_img = img_list[-1]
+                    img_list.extend([last_img.copy() for _ in range(target_count - len(img_list))])
+                elif len(img_list) > target_count:
+                    # Truncate to target count
+                    img_list = img_list[:target_count]
+                return img_list
+            
+            # Ensure all arrays have the same number of images
+            ref_arrays = pad_image_list(ref_arrays, max_images, target_h, target_w, "reference")
+            color_arrays = pad_image_list(color_arrays, max_images, target_h, target_w, "color")
+            target_arrays = pad_image_list(target_arrays, max_images, target_h, target_w, "target")
+            depth_arrays = pad_image_list(depth_arrays, max_images, target_h, target_w, "depth")
+            
+            # Create horizontal concatenations
+            ref_row = np.concatenate(ref_arrays, axis=1) if ref_arrays else np.zeros((target_h, target_w, 3))
+            color_row = np.concatenate(color_arrays, axis=1) if color_arrays else np.zeros((target_h, target_w, 3))
+            target_row = np.concatenate(target_arrays, axis=1) if target_arrays else np.zeros((target_h, target_w, 3))
+            depth_row = np.concatenate(depth_arrays, axis=1) if depth_arrays else np.zeros((target_h, target_w, 3))
+            
+            # Stack vertically
+            final_image = np.concatenate([ref_row, color_row, target_row, depth_row], axis=0)
+            
+            # Convert back to tensor and save
+            final_tensor = torch.from_numpy(final_image).permute(2, 0, 1).float()
+            
+            # Save the concatenated image
+            concat_path = scene_path / "concatenated_view.png"
+            save_image(final_tensor, concat_path)
+            print(f"Saved concatenated image to {concat_path}")
+            
+        except Exception as e:
+            print(f"Error creating concatenated image for {scene_path}: {e}")
+            import traceback
+            traceback.print_exc()
     
     def test_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
