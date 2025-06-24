@@ -45,6 +45,12 @@ def train(cfg_dict: DictConfig):
     
     cfg = load_typed_root_config(cfg_dict)
     set_cfg(cfg_dict)
+    
+    # Set fixed GPU if specified in config
+    if hasattr(cfg_dict, 'gpu') and cfg_dict.gpu.device_id is not None:
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(cfg_dict.gpu.device_id)
+        print(cyan(f"Setting CUDA_VISIBLE_DEVICES to GPU {cfg_dict.gpu.device_id}"))
+    
     # Set up the output directory.
     output_dir = Path(
         hydra.core.hydra_config.HydraConfig.get()["runtime"]["output_dir"]
@@ -89,16 +95,24 @@ def train(cfg_dict: DictConfig):
     # This allows the current step to be shared with the data loader processes.
     step_tracker = StepTracker()
 
+    # Determine device configuration
+    if hasattr(cfg_dict, 'gpu') and cfg_dict.gpu.device_id is not None:
+        devices = 1  # Use single GPU when specific device is set
+        strategy = "auto"
+    else:
+        devices = "auto"  # Use auto-detection when no specific GPU is set
+        strategy = (
+            "ddp_find_unused_parameters_true"
+            if torch.cuda.device_count() > 1
+            else "auto"
+        )
+
     trainer = Trainer(
         max_epochs=-1,
         accelerator="gpu",
         logger=logger,
-        devices="auto",
-        strategy=(
-            "ddp_find_unused_parameters_true"
-            if torch.cuda.device_count() > 1
-            else "auto"
-        ),
+        devices=devices,
+        strategy=strategy,
         callbacks=callbacks,
         val_check_interval=cfg.trainer.val_check_interval,
         limit_val_batches = 10,

@@ -9,7 +9,7 @@ defaults:
   - loss: [mse, mae] #seed4d
 
 wandb:
-  project: pixelsplat_nuScene_td4_rend1_test #nuscene 
+  project: pixelsplat_nuScene_td1_test_nuscene_ckpt #nuscene 
   #project: pixelsplat_mae_test #carla
   #project: pixelsplat_mae_test_seed4d #seed4d
   entity: scene-representation-group
@@ -17,6 +17,10 @@ wandb:
   mode: online
 
 mode: test
+
+# GPU Configuration
+gpu:
+  device_id: 0  # Set to specific GPU ID (0, 1, 2, etc.) or "null" for auto-detection: Uses all available GPUs: If multiple GPUs are found, it will use all of them
 
 dataset:
   overfit_to_scene: null
@@ -45,10 +49,10 @@ optimizer:
 
 checkpointing:
   #checkpoint for model trained on carla
-  load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
+  #load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
 
   #checkpoint for model trained on carla and then on nuscenes
-  #load: /app/code/pixelsplat_Sim2Real/outputs/carla_nuScenes_ckpt_basis/2024-11-08/09-31-36/checkpoints/epoch=318-step=400000.ckpt 
+  load: /app/code/pixelsplat_Sim2Real/outputs/carla_nuScenes_ckpt_basis/2024-11-08/09-31-36/checkpoints/epoch=318-step=400000.ckpt 
   every_n_train_steps: 20000
   save_top_k: -1
 
@@ -60,7 +64,7 @@ test:
   #output_path: outputs/test/nuscenes_td2 #nuscene 
   #output_path: outputs/test/carla #carla
   #output_path: outputs/test/seed4d_invisible #seed4d
-  output_path: outputs/test/carla_on_nuscene_0shot_td4_rend1
+  output_path: /app/outputs/carla_on_nuscene_0shot_td1_rend1
   compute_scores: false
   save_image: true
   save_video: true
