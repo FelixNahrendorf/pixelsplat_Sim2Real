@@ -6,7 +6,7 @@ augment: false
 augment_p: 0.5
 augment_mask_count: 5
 nuscene_td: 4                      # is different than carla version
-nuscene_render_k: 2                # determines the index of render view
+nuscene_render_k: 1                # determines the index of render view
 nuscene_version: v1.0-trainval     # is different than carla version
 # If you want to hard-code context views, do so here.
 context_views: null

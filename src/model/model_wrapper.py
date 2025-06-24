@@ -301,7 +301,7 @@ class ModelWrapper(LightningModule):
             # Save the concatenated image
             concat_path = scene_path / "concatenated_view.png"
             save_image(final_tensor, concat_path)
-            print(f"Saved concatenated image to {concat_path}")
+            #print(f"Saved concatenated image to {concat_path}")
             
         except Exception as e:
             print(f"Error creating concatenated image for {scene_path}: {e}")
