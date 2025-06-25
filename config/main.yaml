@@ -9,7 +9,7 @@ defaults:
   - loss: [mse, mae] #seed4d
 
 wandb:
-  project: pixelsplat_nuScene_td1_test_nuscene_ckpt #nuscene 
+  project: pixelsplat_nuScene_td1_rend1_test_nuscene_ckpt #nuscene 
   #project: pixelsplat_mae_test #carla
   #project: pixelsplat_mae_test_seed4d #seed4d
   entity: scene-representation-group

@@ -14,6 +14,86 @@ from omegaconf import DictConfig, OmegaConf
 os.environ['SSL_CERT_DIR'] = '/etc/ssl/certs'
 os.environ['REQUESTS_CA_BUNDLE'] = '/etc/ssl/certs/ca-certificates.crt'
 
+
+import sys
+import builtins
+
+# For single GPU use
+import sys
+import builtins
+
+# Block only specific MPI-related imports
+original_import = builtins.__import__
+
+def block_mpi_import(name, *args, **kwargs):
+    # Only block specific MPI libraries
+    mpi_libraries = [
+        'mpi4py', 'mpi4py.MPI', 'openmpi', 'mpich', 'mvapich',
+        'horovod', 'horovod.torch'
+    ]
+    
+    if name in mpi_libraries or (name.startswith('mpi4py') and '.' in name):
+        print(f"Blocking MPI import of {name}")
+        import types
+        dummy = types.ModuleType(name)
+        
+        # Create a dummy communicator class
+        class DummyComm:
+            @staticmethod
+            def Get_size():
+                return 1  # Single process
+            @staticmethod
+            def Get_rank():
+                return 0  # Main process
+            @staticmethod
+            def barrier():
+                pass
+            @staticmethod
+            def bcast(*args, **kwargs):
+                return args[0] if args else None
+        
+        # Create a proper MPI dummy class
+        class DummyMPI:
+            COMM_WORLD = DummyComm()  # Create an actual dummy communicator
+            @staticmethod
+            def Init(*args, **kwargs):
+                return None
+            @staticmethod
+            def Init_thread(*args, **kwargs):
+                return None, 0
+            @staticmethod
+            def Finalize(*args, **kwargs):
+                return None
+            @staticmethod
+            def Get_rank():
+                return 0
+            @staticmethod
+            def Get_size():
+                return 1
+            @staticmethod
+            def Is_initialized():
+                return False
+        
+        # For mpi4py package
+        if name == 'mpi4py':
+            dummy.MPI = DummyMPI()
+        # For mpi4py.MPI submodule
+        elif name == 'mpi4py.MPI':
+            for attr in dir(DummyMPI):
+                if not attr.startswith('_'):
+                    setattr(dummy, attr, getattr(DummyMPI, attr))
+            # Make sure COMM_WORLD is properly set
+            dummy.COMM_WORLD = DummyComm()
+        
+        sys.modules[name] = dummy
+        return dummy
+    
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = block_mpi_import
+
+
+
 # Configure beartype and jaxtyping.
 with install_import_hook(
     ("src",),

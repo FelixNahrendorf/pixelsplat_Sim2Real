@@ -20,6 +20,10 @@ data_loader:
 
 trainer:
   max_steps: 400_001
+  devices: 1
+  accelerator: gpu
+  strategy:  "single_device"
+  num_nodes: 1
 
 test:
   depth_mode: depth
