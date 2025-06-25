@@ -9,7 +9,7 @@ defaults:
   - loss: [mse, mae] #seed4d
 
 wandb:
-  project: pixelsplat_nuScene_td1_rend1_test_nuscene_ckpt #nuscene 
+  project: pixelsplat_nuScene_td3_rend6_test_nuscene_ckpt #nuscene 
   #project: pixelsplat_mae_test #carla
   #project: pixelsplat_mae_test_seed4d #seed4d
   entity: scene-representation-group
@@ -20,7 +20,7 @@ mode: test
 
 # GPU Configuration
 gpu:
-  device_id: 0  # Set to specific GPU ID (0, 1, 2, etc.) or "null" for auto-detection: Uses all available GPUs: If multiple GPUs are found, it will use all of them
+  device_id: 0  # value set here: 0,1,2,3 corresponds to physical GPU: 0,3,1,2 -> if you want to run on GPU 1, set this to 2
 
 dataset:
   overfit_to_scene: null
@@ -64,7 +64,7 @@ test:
   #output_path: outputs/test/nuscenes_td2 #nuscene 
   #output_path: outputs/test/carla #carla
   #output_path: outputs/test/seed4d_invisible #seed4d
-  output_path: /app/outputs/carla_on_nuscene_0shot_td1_rend1
+  output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td3_rend6
   compute_scores: false
   save_image: true
   save_video: true
