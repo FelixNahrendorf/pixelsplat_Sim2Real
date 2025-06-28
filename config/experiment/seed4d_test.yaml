@@ -25,7 +25,7 @@ data_loader:
 
 test:
   depth_mode: depth
-  output_path: outputs/test/seed4d_invisible
+  output_path: outputs/test/seed4d_invisible_2806
   compute_scores: true
 
 trainer:

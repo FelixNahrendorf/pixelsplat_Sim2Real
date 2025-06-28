@@ -1,0 +1,38 @@
+# @package _global_
+
+defaults:
+  - override /dataset: nuscene_ego_exo
+  - override /model/encoder: epipolar
+  - override /model/encoder/backbone: dino
+  - override /loss: [mse, lpips]
+
+wandb:
+  name: nuscene_ego_exo
+  tags: [seed, 256x256]
+
+dataset:
+  image_shape: [256, 256]
+  roots: [dataset/nuscene]
+  # SEED4D compatibility settings
+  training_towns: ['02']  # SEED4D towns for target views
+  testing_towns: ['02']
+  selected_sensors: [0, 1, 2, 3, 5, 6]  # All 6 NuScenes cameras
+
+data_loader:
+  train:
+    batch_size: 1 # 7 
+
+trainer:
+  max_steps: 400_001
+  devices: 1
+  accelerator: gpu
+  strategy:  "single_device"
+  num_nodes: 1
+
+test:
+  depth_mode: depth
+  output_path: /app/outputs/nuscene_on_nuscene_ego_exo_nuscene_ckpt_25
+  compute_scores: true
+
+
+  

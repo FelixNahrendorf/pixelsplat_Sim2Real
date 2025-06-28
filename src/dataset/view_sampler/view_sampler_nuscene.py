@@ -23,8 +23,8 @@ class ViewSampler_NUSCENECfg:
     augment: bool
     augment_p: float
     augment_mask_count: int
-    nuscene_td: int
-    nuscene_render_k: int            # # determines the index of render view
+    nuscene_td: int 
+    nuscene_render_k: int            # # determines the index of render view 
     nuscene_version: str
     context_views: list[int] | None  # # context views are standing for reference views in Paper
     target_views: list[int] | None

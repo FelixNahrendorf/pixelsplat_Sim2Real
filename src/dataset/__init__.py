@@ -5,6 +5,7 @@ from torch.utils.data import Dataset
 from ..misc.step_tracker import StepTracker
 from .dataset_carla import Dataset_CARLA, Dataset_CARLACfg
 from .dataset_nuScene import Dataset_NUSCENE, Dataset_NUSCENECfg
+from .dataset_nuScene_ego_exo import Dataset_NUSCENE_EGO_EXO, Dataset_NUSCENE_EGO_EXOCfg
 from .dataset_seed4d import Dataset_SEED4D, Dataset_SEED4DCfg
 from .types import Stage
 from .view_sampler import get_view_sampler
@@ -12,9 +13,10 @@ from .view_sampler import get_view_sampler
 DATASETS: dict[str, Dataset] = {
     "carla": Dataset_CARLA,
     "nuscene": Dataset_NUSCENE,
-    "seed4d": Dataset_SEED4D}
+    "seed4d": Dataset_SEED4D,
+    "nuscene_ego_exo": Dataset_NUSCENE_EGO_EXO}
 
-DatasetCfg = Dataset_CARLACfg | Dataset_NUSCENECfg | Dataset_SEED4DCfg
+DatasetCfg = Dataset_CARLACfg | Dataset_NUSCENECfg | Dataset_SEED4DCfg | Dataset_NUSCENE_EGO_EXOCfg
 
 def get_dataset(
     cfg: DatasetCfg,
@@ -30,7 +32,7 @@ def get_dataset(
         elif stage == 'test' or stage == 'val':
             view_sampler = get_view_sampler(
                 cfg.eval_view_sampler, stage, step_tracker)
-    elif cfg.name == "nuscene":
+    elif cfg.name == "nuscene" or cfg.name == "nuscene_ego_exo":
         # # # as nuScene contains train&val sets together
         if stage == 'train' or stage == 'val':        
             view_sampler = get_view_sampler(

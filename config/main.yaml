@@ -1,7 +1,8 @@
 defaults:
-  - dataset: nuscene #nuscene
+  #- dataset: nuscene_ego_exo
+  #- dataset: nuscene #nuscene
   #- dataset: carla #carla
-  #- dataset: seed4d #seed4d
+  - dataset: seed4d #seed4d
   - model/encoder: epipolar
   - model/decoder: splatting_cuda
   #- loss: [mse, lpips] #nuscene
@@ -9,9 +10,10 @@ defaults:
   - loss: [mse, mae] #seed4d
 
 wandb:
-  project: pixelsplat_nuScene_td3_rend6_test_nuscene_ckpt #nuscene 
+  #project: pixelsplat_nuScene_td3_rend6_test_nuscene_ckpt #nuscene 
   #project: pixelsplat_mae_test #carla
-  #project: pixelsplat_mae_test_seed4d #seed4d
+  project: pixelsplat_mae_test_seed4d #seed4d
+  #project: pixelsplat_nuscene_ego_exo #nuscene_ego_exo
   entity: scene-representation-group
   name: placeholder
   mode: online
@@ -49,10 +51,10 @@ optimizer:
 
 checkpointing:
   #checkpoint for model trained on carla
-  #load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
+  load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
 
   #checkpoint for model trained on carla and then on nuscenes
-  load: /app/code/pixelsplat_Sim2Real/outputs/carla_nuScenes_ckpt_basis/2024-11-08/09-31-36/checkpoints/epoch=318-step=400000.ckpt 
+  #load: /app/code/pixelsplat_Sim2Real/outputs/carla_nuScenes_ckpt_basis/2024-11-08/09-31-36/checkpoints/epoch=318-step=400000.ckpt 
   every_n_train_steps: 20000
   save_top_k: -1
 
@@ -62,9 +64,10 @@ train:
 
 test:
   #output_path: outputs/test/nuscenes_td2 #nuscene 
-  #output_path: outputs/test/carla #carla
-  #output_path: outputs/test/seed4d_invisible #seed4d
-  output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td3_rend6
+  #output_path: outputs/test/carla_2706 #carla
+  output_path: outputs/test/seed4d_invisible_2806 #seed4d
+  #output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td3_rend6
+  #output_path: /app/outputs/nuscene_on_nuscene_ego_exo_nuscene_ckpt_25 #nuscene_ego_exo 
   compute_scores: false
   save_image: true
   save_video: true

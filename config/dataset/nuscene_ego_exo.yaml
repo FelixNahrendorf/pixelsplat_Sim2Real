@@ -1,0 +1,17 @@
+name: nuscene_ego_exo  
+#############################################################
+defaults:
+  - train_view_sampler: train_nuscene_ego_exo_view
+  - eval_view_sampler: eval_nuscene_ego_exo_view
+#############################################################
+background_color: [1.0, 1.0, 1.0]
+#############################################################
+max_fov: 90.0
+z_near: 0.007
+z_far: 70.0
+#############################################################
+# SEED4D compatibility settings
+#training_towns: ['02']  # SEED4D towns for target views
+#testing_towns: ['02']
+#selected_sensors: [0, 1, 2, 3, 4, 5]  # All 6 NuScenes cameras
+#############################################################

@@ -22,7 +22,7 @@ data_loader:
 
 test:
   depth_mode: depth
-  output_path: outputs/test/carla
+  output_path: outputs/test/carla_2706
   compute_scores: true
 
 trainer:
