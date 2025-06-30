@@ -13,7 +13,7 @@ wandb:
 dataset:
   image_shape: [256, 256]
   roots: [datasets/carla]
-  training_towns: ['02']  # Configure training towns here #training_towns = ['01','03','04','05','06','07', '10HD']
+  training_towns: ['01','03','04','05','06','07', '10HD']  # Configure training towns here #training_towns = ['01','03','04','05','06','07', '10HD']
   testing_towns: ['02']   # Configure testing towns here
 
 data_loader:
@@ -22,7 +22,7 @@ data_loader:
 
 test:
   depth_mode: depth
-  output_path: outputs/test/carla_2706
+  output_path: /app/outputs/ego_exo_carla_on_carla_ckpt5_fix
   compute_scores: true
 
 trainer:
