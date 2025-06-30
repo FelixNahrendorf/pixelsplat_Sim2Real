@@ -40,6 +40,7 @@ import numpy as np
 import json
 import os 
 import time
+
 os.environ['SSL_CERT_DIR'] = '/etc/ssl/certs'
 os.environ['REQUESTS_CA_BUNDLE'] = '/etc/ssl/certs/ca-certificates.crt'
 
@@ -169,22 +170,102 @@ class ModelWrapper(LightningModule):
             # Convert tensors to numpy arrays and ensure they're in the right format
             def tensor_to_image_array(tensor_list):
                 images = []
-                for tensor in tensor_list:
+                for i, tensor in enumerate(tensor_list):
                     if isinstance(tensor, torch.Tensor):
-                        # Convert to numpy and ensure range [0, 1]
+                        # Convert to numpy and ensure proper format
                         img = tensor.detach().cpu().numpy()
-                        if img.max() > 1.0:
-                            img = img / 255.0
-                        # Ensure shape is (H, W, C)
-                        if len(img.shape) == 3 and img.shape[0] in [1, 3]:
-                            img = np.transpose(img, (1, 2, 0))
-                        # Convert grayscale to RGB if needed
+                        
+                        # Handle different tensor shapes
+                        if len(img.shape) == 3:
+                            if img.shape[0] in [1, 3, 4]:  # Channel first (C, H, W)
+                                img = np.transpose(img, (1, 2, 0))
+                            # If already (H, W, C), keep as is
+                        elif len(img.shape) == 2:  # Grayscale (H, W)
+                            img = np.stack([img] * 3, axis=2)  # Convert to RGB
+                        
+                        # Debug: Check for problematic values
+                        if img.max() > 1.1 or img.min() < -0.1:
+                            print(f"Debug - WARNING: Image {i} has unusual range [{img.min():.3f}, {img.max():.3f}]")
+                        
+                        # Ensure range [0, 1] - be more robust about range detection
+                        if img.dtype == np.uint8:
+                            img = img.astype(np.float32) / 255.0
+                        elif img.max() > 1.0:
+                            # Normalize values > 1.0 back to [0,1] range
+                            img = np.clip(img, 0.0, 1.0)
+                            print(f"Debug - Clipped image {i} to [0,1] range")
+                        
+                        # Ensure 3 channels for RGB
                         if len(img.shape) == 3 and img.shape[2] == 1:
                             img = np.repeat(img, 3, axis=2)
-                        elif len(img.shape) == 2:
-                            img = np.stack([img] * 3, axis=2)
+                        elif len(img.shape) == 3 and img.shape[2] == 4:
+                            img = img[:, :, :3]  # Remove alpha channel if present
+                        
+                        # Final safety clip
+                        img = np.clip(img, 0.0, 1.0)
+                        
                         images.append(img)
+                    else:
+                        print(f"Warning: Non-tensor item in image list: {type(tensor)}")
                 return images
+            
+            # Helper function to create a black image with white text
+            def create_empty_image(target_h, target_w, text):
+                img = np.zeros((target_h, target_w, 3), dtype=np.float32)
+                try:
+                    import cv2
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    font_scale = min(target_h, target_w) / 400.0
+                    color = (1.0, 1.0, 1.0)  # White color
+                    thickness = max(1, int(font_scale * 2))
+                    
+                    text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
+                    text_x = (target_w - text_size[0]) // 2
+                    text_y = (target_h + text_size[1]) // 2
+                    
+                    cv2.putText(img, text, (text_x, text_y), font, font_scale, color, thickness)
+                except ImportError:
+                    pass
+                return img
+            
+            # Fixed padding function
+            def pad_image_list(img_list, target_count, target_h, target_w, list_name):
+                original_count = len(img_list)
+                print(f"Debug - {list_name}: original={original_count}, target={target_count}")
+                
+                if len(img_list) == 0:
+                    # Create empty images with text
+                    empty_img = create_empty_image(target_h, target_w, f"{list_name} empty")
+                    result = [empty_img.copy() for _ in range(target_count)]
+                    print(f"Debug - Created {len(result)} empty images for {list_name}")
+                    return result
+                elif len(img_list) < target_count:
+                    # Repeat the last image to fill the gap
+                    last_img = img_list[-1].copy()
+                    padding_needed = target_count - len(img_list)
+                    padded_images = [last_img.copy() for _ in range(padding_needed)]
+                    img_list.extend(padded_images)
+                    print(f"Debug - Padded {list_name} from {original_count} to {len(img_list)} (added {padding_needed} copies)")
+                    return img_list
+                elif len(img_list) > target_count:
+                    # Truncate to target count
+                    img_list = img_list[:target_count]
+                    print(f"Debug - Truncated {list_name} from {original_count} to {len(img_list)}")
+                    return img_list
+                else:
+                    print(f"Debug - {list_name} already correct size: {len(img_list)}")
+                    return img_list
+            
+            # Debug: Print tensor info before conversion
+            print(f"Debug - Reference images: {len(reference_images)}")
+            print(f"Debug - Color images: {len(color_images)}")
+            print(f"Debug - Target images: {len(target_images)}")
+            print(f"Debug - Depth images: {len(depth_images)}")
+            
+            if color_images:
+                sample_color = color_images[0]
+                if isinstance(sample_color, torch.Tensor):
+                    print(f"Debug - Color tensor shape: {sample_color.shape}, dtype: {sample_color.dtype}, range: [{sample_color.min():.3f}, {sample_color.max():.3f}]")
             
             # Convert all image sets to numpy arrays
             ref_arrays = tensor_to_image_array(reference_images)
@@ -192,19 +273,29 @@ class ModelWrapper(LightningModule):
             target_arrays = tensor_to_image_array(target_images)
             depth_arrays = tensor_to_image_array(depth_images)
             
+            print(f"Debug - After conversion - ref: {len(ref_arrays)}, color: {len(color_arrays)}, target: {len(target_arrays)}, depth: {len(depth_arrays)}")
+            
             # Check if any arrays are empty
-            if not (ref_arrays and color_arrays and target_arrays and depth_arrays):
-                print(f"Warning: Empty image arrays for scene {scene_path}")
+            if not (ref_arrays or color_arrays or target_arrays or depth_arrays):
+                print(f"Warning: All image arrays are empty for scene {scene_path}")
                 return
             
             # Find the maximum number of images across all types
-            max_images = max(len(ref_arrays), len(color_arrays), len(target_arrays), len(depth_arrays))
+            max_images = max(
+                len(ref_arrays) if ref_arrays else 0,
+                len(color_arrays) if color_arrays else 0,
+                len(target_arrays) if target_arrays else 0,
+                len(depth_arrays) if depth_arrays else 0
+            )
+            
+            print(f"Debug - Max images: {max_images}")
             
             # Get dimensions - use the first available image from any array
             sample_img = None
-            for img_list in [ref_arrays, color_arrays, target_arrays, depth_arrays]:
+            for img_list, name in [(ref_arrays, "ref"), (color_arrays, "color"), (target_arrays, "target"), (depth_arrays, "depth")]:
                 if img_list:
                     sample_img = img_list[0]
+                    print(f"Debug - Using {name} for dimensions: {sample_img.shape}")
                     break
             
             if sample_img is None:
@@ -214,95 +305,68 @@ class ModelWrapper(LightningModule):
             target_h, target_w = sample_img.shape[:2]
             
             # Resize all images to match target dimensions
-            def resize_images(img_list, target_h, target_w):
+            def resize_images(img_list, target_h, target_w, list_name):
                 resized = []
-                for img in img_list:
+                for i, img in enumerate(img_list):
                     if img.shape[:2] != (target_h, target_w):
                         try:
-                            from scipy.ndimage import zoom
-                            zoom_factors = (target_h / img.shape[0], target_w / img.shape[1], 1)
-                            img = zoom(img, zoom_factors, order=1)
-                        except ImportError:
-                            # Fallback: use simple numpy interpolation
                             import cv2
                             img = cv2.resize(img, (target_w, target_h))
+                            print(f"Debug - Resized {list_name}[{i}] to ({target_h}, {target_w})")
+                        except ImportError:
+                            try:
+                                from scipy.ndimage import zoom
+                                zoom_factors = (target_h / img.shape[0], target_w / img.shape[1], 1)
+                                img = zoom(img, zoom_factors, order=1)
+                                print(f"Debug - Zoom resized {list_name}[{i}] to ({target_h}, {target_w})")
+                            except ImportError:
+                                print(f"Warning: Cannot resize {list_name}[{i}] - no cv2 or scipy available")
                     resized.append(img)
                 return resized
             
-            # Resize all images
-            try:
-                ref_arrays = resize_images(ref_arrays, target_h, target_w)
-                color_arrays = resize_images(color_arrays, target_h, target_w)
-                target_arrays = resize_images(target_arrays, target_h, target_w)
-                depth_arrays = resize_images(depth_arrays, target_h, target_w)
-            except Exception as e:
-                print(f"Warning: Could not resize images for {scene_path}: {e}")
-                return
+            # Resize all images first
+            if ref_arrays:
+                ref_arrays = resize_images(ref_arrays, target_h, target_w, "reference")
+            if color_arrays:
+                color_arrays = resize_images(color_arrays, target_h, target_w, "color")
+            if target_arrays:
+                target_arrays = resize_images(target_arrays, target_h, target_w, "target")
+            if depth_arrays:
+                depth_arrays = resize_images(depth_arrays, target_h, target_w, "depth")
             
-            # Helper function to create a black image with white text
-            def create_empty_list_image(target_h, target_w, list_name):
-                # Create black image
-                img = np.zeros((target_h, target_w, 3), dtype=np.float32)
-                
-                try:
-                    import cv2
-                    # Add white text "list empty"
-                    text = f"{list_name} empty"
-                    font = cv2.FONT_HERSHEY_SIMPLEX
-                    font_scale = min(target_h, target_w) / 400.0  # Scale font based on image size
-                    color = (1.0, 1.0, 1.0)  # White color in [0,1] range
-                    thickness = max(1, int(font_scale * 2))
-                    
-                    # Get text size to center it
-                    text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
-                    text_x = (target_w - text_size[0]) // 2
-                    text_y = (target_h + text_size[1]) // 2
-                    
-                    cv2.putText(img, text, (text_x, text_y), font, font_scale, color, thickness)
-                except ImportError:
-                    # Fallback: just return black image if cv2 not available
-                    pass
-                
-                return img
-            
-            # Pad arrays to have the same number of images
-            def pad_image_list(img_list, target_count, target_h, target_w, list_name):
-                if len(img_list) == 0:
-                    # Create black images with "list empty" text if list is empty
-                    empty_img = create_empty_list_image(target_h, target_w, list_name)
-                    return [empty_img.copy() for _ in range(target_count)]
-                elif len(img_list) < target_count:
-                    # Repeat the last image to fill the gap
-                    last_img = img_list[-1]
-                    img_list.extend([last_img.copy() for _ in range(target_count - len(img_list))])
-                elif len(img_list) > target_count:
-                    # Truncate to target count
-                    img_list = img_list[:target_count]
-                return img_list
-            
-            # Ensure all arrays have the same number of images
+            # Ensure all arrays have the same number of images using FIXED padding
             ref_arrays = pad_image_list(ref_arrays, max_images, target_h, target_w, "reference")
             color_arrays = pad_image_list(color_arrays, max_images, target_h, target_w, "color")
             target_arrays = pad_image_list(target_arrays, max_images, target_h, target_w, "target")
             depth_arrays = pad_image_list(depth_arrays, max_images, target_h, target_w, "depth")
             
             # Create horizontal concatenations
-            ref_row = np.concatenate(ref_arrays, axis=1) if ref_arrays else np.zeros((target_h, target_w, 3))
-            color_row = np.concatenate(color_arrays, axis=1) if color_arrays else np.zeros((target_h, target_w, 3))
-            target_row = np.concatenate(target_arrays, axis=1) if target_arrays else np.zeros((target_h, target_w, 3))
-            depth_row = np.concatenate(depth_arrays, axis=1) if depth_arrays else np.zeros((target_h, target_w, 3))
-            
-            # Stack vertically
-            final_image = np.concatenate([ref_row, color_row, target_row, depth_row], axis=0)
-            
-            # Convert back to tensor and save
-            final_tensor = torch.from_numpy(final_image).permute(2, 0, 1).float()
-            
-            # Save the concatenated image
-            concat_path = scene_path / "concatenated_view.png"
-            save_image(final_tensor, concat_path)
-            #print(f"Saved concatenated image to {concat_path}")
-            
+            try:
+                ref_row = np.concatenate(ref_arrays, axis=1) if ref_arrays else np.zeros((target_h, target_w, 3))
+                color_row = np.concatenate(color_arrays, axis=1) if color_arrays else np.zeros((target_h, target_w, 3))
+                target_row = np.concatenate(target_arrays, axis=1) if target_arrays else np.zeros((target_h, target_w, 3))
+                depth_row = np.concatenate(depth_arrays, axis=1) if depth_arrays else np.zeros((target_h, target_w, 3))
+                
+                print(f"Debug - Row shapes: ref{ref_row.shape}, color{color_row.shape}, target{target_row.shape}, depth{depth_row.shape}")
+                
+                # Stack vertically
+                final_image = np.concatenate([ref_row, color_row, target_row, depth_row], axis=0)
+                
+                print(f"Debug - Final image shape: {final_image.shape}, range: [{final_image.min():.3f}, {final_image.max():.3f}]")
+                
+                # Convert back to tensor and save
+                final_tensor = torch.from_numpy(final_image).permute(2, 0, 1).float()
+                
+                # Save the concatenated image
+                concat_path = scene_path / "concatenated_view.png"
+                save_image(final_tensor, concat_path)
+                print(f"Saved concatenated image to {concat_path}")
+                
+            except Exception as e:
+                print(f"Error during concatenation for {scene_path}: {e}")
+                import traceback
+                traceback.print_exc()
+                
         except Exception as e:
             print(f"Error creating concatenated image for {scene_path}: {e}")
             import traceback
@@ -318,7 +382,7 @@ class ModelWrapper(LightningModule):
             gaussians = self.encoder(
                 batch["context"],
                 self.global_step,
-                deterministic=False,
+                deterministic=False,  #RESTORED: Use deterministic=True for consistent test results - EDIT: # DEBUG: changed to False for testing
             )
         with self.benchmarker.time("decoder", num_calls=v):
             output = self.decoder.forward(
@@ -447,61 +511,14 @@ class ModelWrapper(LightningModule):
 
             with (out_dir / f"scores_all_avg.json").open("w") as f:
                 json.dump(saved_scores, f)
-            #self.benchmarker.clear_history() #not implemented in Benchmarker
+            # Note: benchmarker.clear_history() method may not be implemented
+            # self.benchmarker.clear_history()
         else:
             self.benchmarker.dump(self.test_cfg.output_path / name / "benchmark.json")
             self.benchmarker.dump_memory(
                 self.test_cfg.output_path / name / "peak_memory.json"
             )
             self.benchmarker.summarize()
-
-
-    # def test_step(self, batch, batch_idx):
-    #     batch: BatchedExample = self.data_shim(batch)
-
-    #     b, v, _, h, w = batch["target"]["image"].shape
-    #     assert b == 1
-    #     if batch_idx % 100 == 0:
-    #         print(f"Test step {batch_idx:0>6}.")
-
-    #     # Render Gaussians.
-    #     with self.benchmarker.time("encoder"):
-    #         gaussians = self.encoder(
-    #             batch["context"],
-    #             self.global_step,
-    #             deterministic=False,
-    #         )
-    #     with self.benchmarker.time("decoder", num_calls=v):
-    #         color = []
-    #         for i in range(0, batch["target"]["far"].shape[1], 32):
-    #             output = self.decoder.forward(
-    #                 gaussians,
-    #                 batch["target"]["extrinsics"][:1, i : i + 32],
-    #                 batch["target"]["intrinsics"][:1, i : i + 32],
-    #                 batch["target"]["near"][:1, i : i + 32],
-    #                 batch["target"]["far"][:1, i : i + 32],
-    #                 (h, w),
-    #             )
-    #             color.append(output.color)
-    #         color = torch.cat(color, dim=1)
-
-    #     # Save images.
-    #     (scene,) = batch["scene"]
-    #     name = get_cfg()["wandb"]["name"]
-    #     path = self.test_cfg.output_path / name
-    #     for index, color in zip(batch["target"]["index"][0], color[0]):
-    #         save_image(color, path / scene / f"color/{index:0>6}.png")
-    #     for index, color in zip(
-    #         batch["context"]["index"][0], batch["context"]["image"][0]
-    #     ):
-    #         save_image(color, path / scene / f"context/{index:0>6}.png")
-
-    # def on_test_end(self) -> None:
-    #     name = get_cfg()["wandb"]["name"]
-    #     self.benchmarker.dump(self.test_cfg.output_path / name / "benchmark.json")
-    #     self.benchmarker.dump_memory(
-    #         self.test_cfg.output_path / name / "peak_memory.json"
-    #     )
 
     @rank_zero_only
     def validation_step(self, batch, batch_idx):
@@ -520,7 +537,7 @@ class ModelWrapper(LightningModule):
         gaussians_probabilistic = self.encoder(
             batch["context"],
             self.global_step,
-            deterministic=False,
+            deterministic=False, 
         )
         output_probabilistic = self.decoder.forward(
             gaussians_probabilistic,
