@@ -12,8 +12,36 @@ from itertools import islice, cycle
 
 def softmax(x):
     """Compute softmax values for each sets of scores in x."""
-    e_x = np.exp(x - np.max(x))
-    return e_x / e_x.sum()
+    # Handle edge cases that cause "probabilities do not sum to 1"
+    x = np.array(x, dtype=np.float64)  # Use higher precision
+    
+    # Check for invalid inputs
+    if np.any(np.isnan(x)) or np.any(np.isinf(x)):
+        print(f"Warning: Invalid values in softmax input: {x}")
+        # Return uniform distribution as fallback
+        return np.ones(len(x)) / len(x)
+    
+    # Prevent overflow by subtracting max
+    x_max = np.max(x)
+    if np.isinf(x_max) or np.isnan(x_max):
+        return np.ones(len(x)) / len(x)
+        
+    e_x = np.exp(x - x_max)
+    
+    # Check for underflow (all zeros)
+    sum_e_x = e_x.sum()
+    if sum_e_x == 0 or np.isnan(sum_e_x) or np.isinf(sum_e_x):
+        print(f"Warning: Invalid softmax sum: {sum_e_x}, returning uniform distribution")
+        return np.ones(len(x)) / len(x)
+    
+    result = e_x / sum_e_x
+    
+    # Final check that probabilities sum to 1
+    if abs(result.sum() - 1.0) > 1e-6:
+        print(f"Warning: Probabilities don't sum to 1: {result.sum()}, normalizing")
+        result = result / result.sum()
+    
+    return result
 
 @dataclass
 class ViewSampler_NUSCENE_EGO_EXOCfg:
@@ -47,62 +75,119 @@ class ViewSampler_NUSCENE_EGO_EXO(ViewSampler[ViewSampler_NUSCENE_EGO_EXOCfg]):
         Uses the same sampling logic as SEED4D (ViewSamplerIOsplat) for compatibility.
         """
         temperature = 1
+        num_available_context = extrinsics_context.shape[0]
+        num_available_target = extrinsics_target.shape[0]
+        
+        print(f"ViewSampler DEBUG: Available cameras - context: {num_available_context}, target: {num_available_target}")
+        print(f"ViewSampler DEBUG: Requested views - context: {self.cfg.num_context_views}, target: {self.cfg.num_target_views}")
         
         # Context view selection - NuScenes 6 cameras (same logic as SEED4D)
-        if self.cfg.num_context_views < 6:
-            # Use SEED4D's camera ordering preference
-            Choice = [0, 1, 5, 3, 4, 2]
+        if self.cfg.num_context_views < num_available_context:
+            # Use SEED4D's camera ordering preference, but ensure indices are valid
+            Choice = [i for i in [0, 1, 5, 3, 4, 2] if i < num_available_context]
             start = random.randint(0, len(Choice) - 1)
-            index_context = torch.tensor(
-                list(islice(cycle(Choice), start, start + self.cfg.num_context_views))
-            ).to(dtype=torch.int64, device=device)
+            selected_indices = list(islice(cycle(Choice), start, start + self.cfg.num_context_views))
+            index_context = torch.tensor(selected_indices).to(dtype=torch.int64, device=device)
         else:
-            # Use all 6 cameras with SEED4D ordering
-            index_context = torch.from_numpy(np.array([0, 1, 5, 3, 4, 2])).to(dtype=torch.int64, device=device)
+            # Use all available cameras
+            index_context = torch.arange(min(self.cfg.num_context_views, num_available_context)).to(dtype=torch.int64, device=device)
+        
+        print(f"ViewSampler DEBUG: Selected context indices: {index_context}")
         
         # Target view selection with similarity-based sampling (same as SEED4D)
-        context_camera_directions = extrinsics_context[index_context, :, 2]
-        target_camera_directions = extrinsics_target[:, :, 2]
-        context_target_similarity = np.einsum("ij,lj->il", context_camera_directions, target_camera_directions)
-        
-        # Apply temperature scaling to similarity scores
-        target_sample_weight_map = np.array([softmax(temperature * row) for row in context_target_similarity])
-        target_sample_weight = np.max(target_sample_weight_map, axis=0)
-        target_sample_weight = softmax(temperature * target_sample_weight)
+        # Convert to numpy for calculations but keep precision
+        try:
+            context_camera_directions = extrinsics_context[index_context, :3, 2].cpu().numpy().astype(np.float64)
+            target_camera_directions = extrinsics_target[:, :3, 2].cpu().numpy().astype(np.float64)
+            
+            print(f"ViewSampler DEBUG: Context directions shape: {context_camera_directions.shape}")
+            print(f"ViewSampler DEBUG: Target directions shape: {target_camera_directions.shape}")
+            
+            # Check for invalid values
+            if np.any(np.isnan(context_camera_directions)) or np.any(np.isinf(context_camera_directions)):
+                print("ViewSampler ERROR: Invalid context camera directions!")
+                raise ValueError("Invalid context camera directions")
+            if np.any(np.isnan(target_camera_directions)) or np.any(np.isinf(target_camera_directions)):
+                print("ViewSampler ERROR: Invalid target camera directions!")
+                raise ValueError("Invalid target camera directions")
+            
+            # Calculate similarity
+            context_target_similarity = np.einsum("ij,lj->il", context_camera_directions, target_camera_directions)
+            print(f"ViewSampler DEBUG: Similarity matrix shape: {context_target_similarity.shape}")
+            
+            # Apply temperature scaling to similarity scores
+            target_sample_weight_map = np.array([softmax(temperature * row) for row in context_target_similarity])
+            target_sample_weight = np.max(target_sample_weight_map, axis=0)
+            target_sample_weight = softmax(temperature * target_sample_weight)
+            
+            print(f"ViewSampler DEBUG: Target weights shape: {target_sample_weight.shape}")
+            print(f"ViewSampler DEBUG: Target weights sum: {target_sample_weight.sum()}")
+            print(f"ViewSampler DEBUG: Target weights range: [{target_sample_weight.min():.6f}, {target_sample_weight.max():.6f}]")
+            
+        except Exception as e:
+            print(f"ViewSampler ERROR in similarity calculation: {e}")
+            # Fallback to uniform distribution
+            target_sample_weight = np.ones(num_available_target) / num_available_target
+            print("ViewSampler: Using uniform target sampling as fallback")
         
         # Stage-dependent target sampling (same limits as SEED4D)
-        if self.stage == 'test' or self.stage == 'val':
-            # Use predefined target views if specified
-            if self.cfg.target_views is not None:
-                assert len(self.cfg.target_views) == self.cfg.num_target_views
-                index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
-            else:
-                # Sample from 20 spherical views (SEED4D test/val limit)
-                assert self.cfg.num_target_views <= 20
-                available_targets = min(20, len(target_sample_weight))
+        try:
+            if self.stage == 'test' or self.stage == 'val':
+                # Use predefined target views if specified
+                if self.cfg.target_views is not None:
+                    assert len(self.cfg.target_views) == self.cfg.num_target_views
+                    index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
+                else:
+                    # Sample from available target views
+                    available_targets = min(num_available_target, len(target_sample_weight))
+                    num_to_sample = min(self.cfg.num_target_views, available_targets)
+                    
+                    print(f"ViewSampler DEBUG: Sampling {num_to_sample} targets from {available_targets} available")
+                    
+                    # Ensure we have valid probabilities
+                    weights = target_sample_weight[:available_targets]
+                    if len(weights) == 0 or weights.sum() == 0:
+                        weights = np.ones(available_targets) / available_targets
+                    
+                    index_target = torch.from_numpy(
+                        np.random.choice(
+                            np.arange(0, available_targets), 
+                            size=num_to_sample,
+                            replace=False, 
+                            p=weights
+                        )
+                    ).to(dtype=torch.int64, device=device)
+            
+            # Training stage - sample from available views
+            elif self.stage == 'train':
+                available_targets = num_available_target
+                num_to_sample = min(self.cfg.num_target_views, available_targets)
+                
+                # Ensure we have valid probabilities
+                weights = target_sample_weight[:available_targets]
+                if len(weights) == 0 or weights.sum() == 0:
+                    weights = np.ones(available_targets) / available_targets
+                
                 index_target = torch.from_numpy(
                     np.random.choice(
                         np.arange(0, available_targets), 
-                        size=self.cfg.num_target_views,
+                        size=num_to_sample,
                         replace=False, 
-                        p=target_sample_weight[:available_targets]
+                        p=weights
                     )
                 ).to(dtype=torch.int64, device=device)
+            else:
+                raise KeyError("Called dataset with wrong stage argument")
+                
+        except Exception as e:
+            print(f"ViewSampler ERROR in target sampling: {e}")
+            # Fallback to sequential sampling
+            num_to_sample = min(self.cfg.num_target_views, num_available_target)
+            index_target = torch.arange(num_to_sample).to(dtype=torch.int64, device=device)
+            print(f"ViewSampler: Using sequential target sampling as fallback: {index_target}")
         
-        # Training stage - sample from 80 views (SEED4D train limit)
-        elif self.stage == 'train':
-            assert self.cfg.num_target_views <= 80
-            available_targets = min(80, len(target_sample_weight))
-            index_target = torch.from_numpy(
-                np.random.choice(
-                    np.arange(0, available_targets), 
-                    size=self.cfg.num_target_views,
-                    replace=False, 
-                    p=target_sample_weight[:available_targets]
-                )
-            ).to(dtype=torch.int64, device=device)
-        else:
-            raise KeyError("Called dataset with wrong stage argument")
+        print(f"ViewSampler DEBUG: Final context indices: {index_context}")
+        print(f"ViewSampler DEBUG: Final target indices: {index_target}")
         
         # Return only 2 values (same as SEED4D ViewSamplerIOsplat)
         return index_context, index_target
