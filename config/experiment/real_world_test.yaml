@@ -20,14 +20,14 @@ data_loader:
 
 trainer:
   max_steps: 400_001
-  devices: 1
-  accelerator: gpu
-  strategy:  "single_device"
-  num_nodes: 1
+  #devices: 1
+  #accelerator: gpu
+  #strategy:  "single_device"
+  #num_nodes: 1
 
 test:
   depth_mode: depth
-  output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td3_rend6 # outputs/test/nuscene #time_df4
+  output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td0_rend0_2 # outputs/test/nuscene #time_df4
   compute_scores: true
 
 

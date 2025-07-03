@@ -16,7 +16,7 @@ dataset:
   # SEED4D compatibility settings
   training_towns: ['01','03','04','05','06','07', '10HD']  # SEED4D towns for target views
   testing_towns: ['02']
-  selected_sensors: [0, 1, 2, 3, 5, 6]  # List of sensor indices to use (0-6 based on transforms_ego.json)
+  #selected_sensors: [0, 1, 2, 3, 5, 6]  # List of sensor indices to use (0-6 based on transforms_ego.json)
 
 data_loader:
   train:
@@ -24,14 +24,14 @@ data_loader:
 
 trainer:
   max_steps: 400_001
-  devices: 1
-  accelerator: gpu
-  strategy:  "single_device"
-  num_nodes: 1
+  #devices: 1
+  #accelerator: gpu
+  #strategy:  "single_device"
+  #num_nodes: 1
 
 test:
   depth_mode: depth
-  output_path: /app/outputs/ego_exo_nuscene_on_nuscene_ckpt_fix
+  output_path: /app/outputs/ego_exo_nuscene_on_carla_ckpt_changed_transform_fov_means_images_switched
   compute_scores: true
 
 
