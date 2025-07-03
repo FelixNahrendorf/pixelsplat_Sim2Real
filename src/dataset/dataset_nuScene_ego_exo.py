@@ -35,9 +35,9 @@ from pyquaternion.quaternion import Quaternion
 NUSCENE_DATA_DIR = "/app/datasets/nuscenes_full/" 
 assert NUSCENE_DATA_DIR is not None, "Update the location of the NUSCENE Dataset"
 
-# SEED4D spherical camera paths - these will be used as target views
-SEED4D_DATASET_ROOT = '/app/data/seed4d/static/' # Change this to your data directory 
-assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
+# Fixed SEED4D transform paths
+SEED4D_CONTEXT_TRANSFORM = '/app/code/seed4d/data/Town01/ClearNoon/vehicle.audi.tt/spawn_point_1/step_0/ego_vehicle/nuscenes_invisible/transforms/transforms_ego.json'
+SEED4D_TARGET_TRANSFORM = '/app/code/seed4d/data/Town01/ClearNoon/vehicle.audi.tt/spawn_point_1/step_0/ego_vehicle/sphere_invisible/transforms/transforms_ego.json'
 
 @dataclass
 class Dataset_NUSCENE_EGO_EXOCfg(DatasetCfgCommon):
@@ -47,10 +47,6 @@ class Dataset_NUSCENE_EGO_EXOCfg(DatasetCfgCommon):
     max_fov: float
     z_near: float
     z_far: float
-    # SEED4D compatibility
-    training_towns: List[str] = None  # SEED4D towns to use for camera coordinates
-    testing_towns: List[str] = None   
-    selected_sensors: Optional[List[int]] = None  # List of SEED4D sensor indices to use
     
 class Dataset_NUSCENE_EGO_EXO(Dataset):
     cfg: Dataset_NUSCENE_EGO_EXOCfg
@@ -69,8 +65,8 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
         self.view_sampler = view_sampler
         self.to_tensor = tf.ToTensor()
         
-        # Configure sensor selection (for SEED4D context cameras)
-        self.sensor_indices = self._configure_sensor_selection()
+        # Configure sensor selection (always use first 6 sensors for 6 NuScenes cameras)
+        self.sensor_indices = list(range(6))  # Always use indices 0-5 for 6 NuScenes cameras
         
         # NuScenes setup
         self.version = 'v1.0-mini'  # or get from config
@@ -80,7 +76,7 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
         self.nuscenes_cameras = [
             'CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_FRONT_LEFT', 'CAM_BACK', 
             'CAM_BACK_LEFT', 'CAM_BACK_RIGHT'
-            ]
+        ]
         
         # Get scenes for current stage
         all_splits = create_splits_scenes()
@@ -113,6 +109,8 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
             if scene["name"] in scene_names:
                 self.scenes.append(scene)
         
+        print(f"Using {len(self.scenes)} scenes")
+        
         # Get all samples (frames) from selected scenes
         self.samples = []
         for scene in self.scenes:
@@ -122,14 +120,25 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
                 self.samples.append(sample_token)
                 sample_token = sample["next"]
         
-        # 🎯 SEED4D coordinate system setup (same as original SEED4D dataset)
+        # SEED4D coordinate system setup (using fixed paths)
         self._setup_seed4d_coordinate_system()
         
         # Configure resolutions
-        self.context_resolution = (self.view_sampler.cfg.input_context_resolution, 
-                                 self.view_sampler.cfg.input_context_resolution)
-        self.target_resolution = (self.view_sampler.cfg.output_target_resolution, 
-                                self.view_sampler.cfg.output_target_resolution)
+        if self.stage == 'train':
+            view_sampler_cfg = self.cfg.train_view_sampler
+        else:
+            view_sampler_cfg = self.cfg.eval_view_sampler
+            
+        self.context_resolution = (view_sampler_cfg.input_context_resolution, 
+                                 view_sampler_cfg.input_context_resolution)
+        self.target_resolution = (view_sampler_cfg.output_target_resolution, 
+                                view_sampler_cfg.output_target_resolution)
+        
+        print(f"Using {self.stage} view sampler config:")
+        print(f"   num_context_views: {view_sampler_cfg.num_context_views}")
+        print(f"   num_target_views: {view_sampler_cfg.num_target_views}")
+        print(f"   input_context_resolution: {view_sampler_cfg.input_context_resolution}")
+        print(f"   output_target_resolution: {view_sampler_cfg.output_target_resolution}")
         
         # Augmentation flag
         self.augment_flag = self.stage == 'train' and self.cfg.train_view_sampler.augment
@@ -137,113 +146,90 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
         # Pre-load data into memory (with error handling)
         print(f"Pre-loading {len(self.samples)} NuScenes samples with SEED4D coordinates...")
         
-        # Load all samples, not just first 3
+        # Load all samples
         successful_loads = 0
         for idx in range(len(self.samples)):
             try:
                 self.load_example_id(idx)
                 successful_loads += 1
                 if idx == 0:
-                    print(f"✅ Successfully loaded first sample")
+                    print(f"Successfully loaded first sample")
                 elif idx % 20 == 0:  # Progress update every 20 samples
-                    print(f"✅ Loaded {successful_loads}/{idx+1} samples...")
+                    print(f"Loaded {successful_loads}/{idx+1} samples...")
             except Exception as e:
-                print(f"❌ Error loading sample {idx}: {e}")
+                print(f"Error loading sample {idx}: {e}")
                 print(f"   Sample ID: {self.samples[idx] if idx < len(self.samples) else 'N/A'}")
                 print(f"   SEED4D context transform: {self.selected_input_transform}")
                 print(f"   SEED4D target transform: {self.selected_output_transform}")
                 # Continue loading other samples instead of breaking
                 continue
         
-        print(f"✅ Successfully loaded {successful_loads}/{len(self.samples)} samples")
+        print(f"Successfully loaded {successful_loads}/{len(self.samples)} samples")
         
         print(f"NuScenes Dataset with SEED4D coordinates, initialized for {self.stage} stage")
         print(f"Will use {len(self.samples)} samples with augmentation = {self.augment_flag}")
-        print(f"Selected SEED4D context sensors: {self.sensor_indices}")
-        print(f"Using SEED4D towns: {self.cfg.training_towns or ['02']}")
-    
-    def _configure_sensor_selection(self) -> List[int]:
-        """Configure which SEED4D sensors to use for context cameras."""
-        if self.cfg.selected_sensors is not None:
-            sensor_indices = self.cfg.selected_sensors
-            print(f"Using explicitly selected SEED4D sensors: {sensor_indices}")
-        else:
-            # Default: use all 7 SEED4D sensors (0-6)
-            sensor_indices = list(range(7))  # 0, 1, 2, 3, 4, 5, 6
-            print(f"Using default SEED4D sensors (all 7): {sensor_indices}")
-        
-        return sensor_indices
+        print(f"Using 6 NuScenes cameras with SEED4D sensors: {self.sensor_indices}")
+        print(f"Using fixed SEED4D transforms")
     
     def _setup_seed4d_coordinate_system(self):
-        """Setup SEED4D coordinate system paths (same as original SEED4D dataset)."""
-        data_dir_naming = '/ClearNoon/vehicle.audi.tt/'
+        """Setup SEED4D coordinate system using fixed paths."""
         
-        # Use configuration values or default fallback
-        training_towns = self.cfg.training_towns if self.cfg.training_towns is not None else ['02']
-        testing_towns = self.cfg.testing_towns if self.cfg.testing_towns is not None else ['02']
+        # KEY: Use fixed SEED4D coordinate transforms for BOTH context and target cameras
+        self.selected_input_transform = SEED4D_CONTEXT_TRANSFORM
+        self.selected_output_transform = SEED4D_TARGET_TRANSFORM
         
-        if self.stage == 'train':
-            towns = training_towns
+        print(f"SEED4D Coordinate System Setup (Fixed Paths):")
+        print(f"   Context transform: {self.selected_input_transform}")
+        print(f"   Target transform: {self.selected_output_transform}")
+        
+        # Verify files exist
+        if not os.path.exists(self.selected_input_transform):
+            print(f"WARNING: Context transform file not found: {self.selected_input_transform}")
         else:
-            towns = testing_towns
+            print(f"   Context transform file exists")
             
-        # Get SEED4D paths (exactly like original SEED4D dataset)
-        self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in towns]
-        self.spawn_dirs = [self._str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle') 
-                          for spawns_dir in self.parent_dirs]
-        self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
-        
-        # 🎯 KEY: Use SEED4D coordinate transforms for BOTH context and target cameras
-        if self.stage == 'train':
-            # Context cameras: Use SEED4D nuscenes_invisible transforms for camera coordinates
-            self.input_transforms = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' 
-                                   for spawn_dir in self.spawn_dirs]
-            # Target cameras: Use SEED4D sphere transforms  
-            self.output_transforms = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_train.json' 
-                                    for spawn_dir in self.spawn_dirs]
+        if not os.path.exists(self.selected_output_transform):
+            print(f"WARNING: Target transform file not found: {self.selected_output_transform}")
         else:
-            # Validation/test
-            self.input_transforms = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' 
-                                   for spawn_dir in self.spawn_dirs]
-            self.output_transforms = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' 
-                                    for spawn_dir in self.spawn_dirs]
-        
-        # For simplicity, use the first available SEED4D spawn
-        self.selected_input_transform = self.input_transforms[0] if self.input_transforms else None
-        self.selected_output_transform = self.output_transforms[0] if self.output_transforms else None
-        
-        print(f"🎯 SEED4D Coordinate System Setup:")
-        print(f"   Context transforms: {len(self.input_transforms)} available")
-        print(f"   Target transforms: {len(self.output_transforms)} available")
-        print(f"   Using context: {self.selected_input_transform}")
-        print(f"   Using target: {self.selected_output_transform}")
+            print(f"   Target transform file exists")
     
-    def _str_list_concat(self, pre_string, folders_dir, post_string):
-        """Helper function to concatenate directory paths."""
-        try:
-            list_dirs = os.listdir(folders_dir)
-            return [pre_string + directory + '/' + post_string for directory in list_dirs]
-        except:
-            return []
-    
-    def _modify_camera_index_3(self, extrinsics):
-        """Add 0.8 to camera with index 3 Y-axis right after reading values."""
-        if len(extrinsics) > 3:  # Check if camera index 3 exists
-            print(f"🔧 MODIFYING CAMERA INDEX 3: Adding 0.8 to Y-axis translation")
-            print(f"   Original position: {extrinsics[3][:3, 3].numpy() if isinstance(extrinsics, torch.Tensor) else extrinsics[3][:3, 3]}")
-            
-            # Add 0.8 to the Y-axis translation component (position) of camera index 3
-            extrinsics[3][1, 3] += 0.8  # Only Y-axis
-            
-            print(f"   Modified position: {extrinsics[3][:3, 3].numpy() if isinstance(extrinsics, torch.Tensor) else extrinsics[3][:3, 3]}")
-        else:
-            print(f"⚠️  Camera index 3 not available (only {len(extrinsics)} cameras)")
+    def _modify_cameras_y_axis(self, extrinsics, y_offsets):
+        """
+        Modify Y-axis translation component for cameras with individual offsets.
+        
+        Args:
+            extrinsics: Camera extrinsics (list or tensor)
+            y_offsets: Dictionary or list of Y-axis offsets for each camera index
+                       e.g., {0: 1.0, 3: -0.5, 5: 2.0} or [1.0, 0.0, 0.0, -0.5, 0.0, 2.0]
+        
+        Returns:
+            Modified extrinsics
+        """
+        # Convert to tensor if it's a list
+        if isinstance(extrinsics, list):
+            extrinsics = torch.stack(extrinsics)
+        
+        # Handle dictionary format
+        if isinstance(y_offsets, dict):
+            for camera_idx, offset in y_offsets.items():
+                if camera_idx < len(extrinsics) and offset != 0.0:
+                    original_y = extrinsics[camera_idx][1, 3].item()
+                    extrinsics[camera_idx][1, 3] += offset
+                    print(f"Camera {camera_idx}: Y-axis {original_y:.2f} -> {extrinsics[camera_idx][1, 3].item():.2f} (offset: {offset:+.2f})")
+        
+        # Handle list format
+        elif isinstance(y_offsets, (list, tuple)):
+            for camera_idx, offset in enumerate(y_offsets):
+                if camera_idx < len(extrinsics) and offset != 0.0:
+                    original_y = extrinsics[camera_idx][1, 3].item()
+                    extrinsics[camera_idx][1, 3] += offset
+                    print(f"Camera {camera_idx}: Y-axis {original_y:.2f} -> {extrinsics[camera_idx][1, 3].item():.2f} (offset: {offset:+.2f})")
         
         return extrinsics
     
     def debug_coordinate_systems(self, context_extrinsics, target_extrinsics, sample_name=""):
         """Debug function to analyze SEED4D coordinate systems."""
-        print(f"\n🔍 SEED4D COORDINATE SYSTEM ANALYSIS {sample_name}")
+        print(f"\nSEED4D COORDINATE SYSTEM ANALYSIS {sample_name}")
         print("=" * 60)
         
         # Extract positions (translation components)
@@ -257,7 +243,7 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
         else:
             target_positions = target_extrinsics[:, :3, 3]
         
-        print(f"📍 SEED4D CONTEXT CAMERAS ({len(context_positions)} cameras):")
+        print(f"SEED4D CONTEXT CAMERAS ({len(context_positions)} cameras):")
         print(f"  Sample positions (first 3):")
         for i, pos in enumerate(context_positions[:3]):
             print(f"    Camera {i}: [{pos[0]:8.2f}, {pos[1]:8.2f}, {pos[2]:8.2f}]")
@@ -265,7 +251,7 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
         print(f"    Mean: [{context_positions.mean(axis=0)[0]:8.2f}, {context_positions.mean(axis=0)[1]:8.2f}, {context_positions.mean(axis=0)[2]:8.2f}]")
         print(f"    Distance from origin: {np.linalg.norm(context_positions, axis=1).mean():.2f} ± {np.linalg.norm(context_positions, axis=1).std():.2f}")
         
-        print(f"\n🎯 SEED4D TARGET CAMERAS ({len(target_positions)} cameras):")
+        print(f"\nSEED4D TARGET CAMERAS ({len(target_positions)} cameras):")
         print(f"  Sample positions (first 3):")
         for i, pos in enumerate(target_positions[:3]):
             print(f"    Camera {i}: [{pos[0]:8.2f}, {pos[1]:8.2f}, {pos[2]:8.2f}]")
@@ -278,15 +264,15 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
         target_center = target_positions.mean(axis=0)
         center_distance = np.linalg.norm(context_center - target_center)
         
-        print(f"\n⚖️  COORDINATE SYSTEM COMPARISON:")
+        print(f"\nCOORDINATE SYSTEM COMPARISON:")
         print(f"  Context center: [{context_center[0]:8.2f}, {context_center[1]:8.2f}, {context_center[2]:8.2f}]")
         print(f"  Target center:  [{target_center[0]:8.2f}, {target_center[1]:8.2f}, {target_center[2]:8.2f}]")
         print(f"  Distance between centers: {center_distance:.2f} meters")
         
         if center_distance < 50:
-            print(f"  ✅ GOOD: Both coordinate systems are well aligned!")
+            print(f"  GOOD: Both coordinate systems are well aligned!")
         else:
-            print(f"  ⚠️  WARNING: Large distance between coordinate systems!")
+            print(f"  WARNING: Large distance between coordinate systems!")
         
         print("=" * 60)
     
@@ -322,7 +308,7 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
             self.extrinsics_target = {}
         
         if example_id not in self.all_texture_context.keys():
-            print(f"\n🚗 LOADING SAMPLE: {example_id}")
+            print(f"\nLOADING SAMPLE: {example_id}")
             
             # Initialize storage for this example
             self.all_texture_context[example_id] = []
@@ -332,46 +318,66 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
             self.extrinsics_context[example_id] = []
             self.extrinsics_target[example_id] = []
             
-            # 🎯 LOAD SEED4D CAMERA COORDINATES (for context cameras)
+            # LOAD SEED4D CAMERA COORDINATES (for context cameras)
             if self.selected_input_transform and os.path.exists(self.selected_input_transform):
-                print(f"📐 Loading SEED4D context coordinates from: {self.selected_input_transform}")
+                print(f"Loading SEED4D context coordinates from: {self.selected_input_transform}")
                 seed4d_context_paths, seed4d_context_intrinsics, seed4d_context_extrinsics = \
                     readPixelSplatCamera(self.selected_input_transform, 
-                                       resolution=self.view_sampler.cfg.input_context_resolution,
+                                       resolution=self.context_resolution[0],
                                        near=self.cfg.z_near, far=self.cfg.z_far)
                 
-                # 🔧 MODIFY CAMERA INDEX 3 RIGHT AFTER READING VALUES
+                # Convert to tensor if needed
                 if isinstance(seed4d_context_extrinsics, list):
                     seed4d_context_extrinsics = torch.stack(seed4d_context_extrinsics)
-                seed4d_context_extrinsics = self._modify_camera_index_3(seed4d_context_extrinsics)
                 
-                # Filter to selected sensors
-                seed4d_context_paths = [seed4d_context_paths[i] for i in self.sensor_indices 
-                                      if i < len(seed4d_context_paths)]
+                # MODIFY CAMERAS Y-AXIS - Choose one of these options:
+                
+                # Option 1: Dictionary format (only modify specific cameras)
+                #seed4d_context_extrinsics = self._modify_cameras_y_axis(
+                #    seed4d_context_extrinsics, 
+                #    {3: 0.0}  # Only modify camera 3 (backwards compatibility)
+                #)
+                
+                # Option 2: List format (specify offset for each camera index)
+                seed4d_context_extrinsics = self._modify_cameras_y_axis(
+                    seed4d_context_extrinsics, 
+                    #[-0.811, -0.667, -0.651, 0.856, 0.142, 0.139]  
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] 
+                )
+                
+                # Option 3: Multiple specific cameras with different offsets
+                # seed4d_context_extrinsics = self._modify_cameras_y_axis(
+                #     seed4d_context_extrinsics, 
+                #     {0: 1.0, 2: -0.5, 4: 2.0}  # Camera 0: +1.0, Camera 2: -0.5, Camera 4: +2.0
+                # )
+                
+                # Filter to first 6 sensors to match 6 NuScenes cameras (indices 0-5)
+                valid_sensor_indices = list(range(6))  # Always use 0, 1, 2, 3, 4, 5
+                
+                print(f"   Using first 6 SEED4D sensors: {valid_sensor_indices}")
+                
+                seed4d_context_paths = [seed4d_context_paths[i] for i in valid_sensor_indices if i < len(seed4d_context_paths)]
+                
                 if isinstance(seed4d_context_intrinsics, list):
-                    seed4d_context_intrinsics = [seed4d_context_intrinsics[i] for i in self.sensor_indices 
-                                               if i < len(seed4d_context_intrinsics)]
-                    selected_indices = [i for i in self.sensor_indices if i < len(seed4d_context_extrinsics)]
-                    seed4d_context_extrinsics = seed4d_context_extrinsics[selected_indices]
+                    seed4d_context_intrinsics = [seed4d_context_intrinsics[i] for i in valid_sensor_indices if i < len(seed4d_context_intrinsics)]
+                    seed4d_context_extrinsics = seed4d_context_extrinsics[[i for i in valid_sensor_indices if i < len(seed4d_context_extrinsics)]]
                 else:
                     # Handle tensor case
-                    selected_indices = [i for i in self.sensor_indices if i < len(seed4d_context_intrinsics)]
-                    seed4d_context_intrinsics = seed4d_context_intrinsics[selected_indices]
-                    seed4d_context_extrinsics = seed4d_context_extrinsics[selected_indices]
+                    valid_indices = [i for i in valid_sensor_indices if i < len(seed4d_context_intrinsics)]
+                    seed4d_context_intrinsics = seed4d_context_intrinsics[valid_indices]
+                    seed4d_context_extrinsics = seed4d_context_extrinsics[valid_indices]
                 
                 print(f"   Selected {len(seed4d_context_paths)} SEED4D context cameras")
             else:
-                print(f"❌ SEED4D context transform not found: {self.selected_input_transform}")
+                print(f"SEED4D context transform not found: {self.selected_input_transform}")
                 return
             
-            # 🚗 LOAD NUSCENES IMAGES (but use SEED4D coordinates)
+            # LOAD NUSCENES IMAGES (but use SEED4D coordinates)
             sample = self.nusc.get("sample", example_id)
             nuscenes_image_paths = []
             
-            # Get NuScenes image paths for the selected sensors
-            available_cameras = min(len(self.nuscenes_cameras), len(seed4d_context_paths))
-            
-            for i in range(available_cameras):
+            # Get NuScenes image paths - exactly 6 cameras to match 6 SEED4D sensors
+            for i in range(6):  # Always use exactly 6 cameras
                 if i < len(self.nuscenes_cameras):
                     camera_name = self.nuscenes_cameras[i]
                     if camera_name in sample["data"]:
@@ -379,21 +385,18 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
                         camera_data = self.nusc.get("sample_data", camera_token)
                         image_path = os.path.join(NUSCENE_DATA_DIR, camera_data["filename"])
                         nuscenes_image_paths.append(image_path)
-                        print(f"   📷 NuScenes {camera_name}: {camera_data['filename']}")
+                        print(f"   NuScenes {camera_name}: {camera_data['filename']}")
                     else:
-                        print(f"   ⚠️  Missing camera {camera_name} in sample")
-                        nuscenes_image_paths.append(None)  # Placeholder
-            
-            # Ensure we have the right number of images to match SEED4D coordinates
-            while len(nuscenes_image_paths) < len(seed4d_context_paths):
-                # Duplicate last available image if needed
-                if nuscenes_image_paths and nuscenes_image_paths[-1] is not None:
-                    nuscenes_image_paths.append(nuscenes_image_paths[-1])
+                        print(f"   Missing camera {camera_name} in sample")
+                        # Use a black image placeholder if camera is missing
+                        nuscenes_image_paths.append(None)
                 else:
+                    # This shouldn't happen since we have exactly 6 NuScenes cameras
+                    print(f"   Error: Trying to access camera index {i} but only have {len(self.nuscenes_cameras)} cameras")
                     nuscenes_image_paths.append(None)
             
             # Store context data: NuScenes images + SEED4D coordinates
-            self.all_texture_context[example_id] = nuscenes_image_paths[:len(seed4d_context_paths)]
+            self.all_texture_context[example_id] = nuscenes_image_paths
             
             if isinstance(seed4d_context_intrinsics, list):
                 self.intrinsics_context[example_id] = torch.stack(seed4d_context_intrinsics)
@@ -402,20 +405,30 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
                 self.intrinsics_context[example_id] = seed4d_context_intrinsics
                 self.extrinsics_context[example_id] = seed4d_context_extrinsics
             
-            print(f"   ✅ Context: {len(self.all_texture_context[example_id])} NuScenes images with SEED4D coordinates")
+            # Ensure extrinsics are proper tensors with correct shape
+            if not isinstance(self.extrinsics_context[example_id], torch.Tensor):
+                self.extrinsics_context[example_id] = torch.tensor(self.extrinsics_context[example_id], dtype=torch.float32)
             
-            # 🎯 LOAD SEED4D TARGET CAMERAS (spherical views)
+            print(f"   Context extrinsics shape: {self.extrinsics_context[example_id].shape}")
+            print(f"   Context: {len(self.all_texture_context[example_id])} NuScenes images with SEED4D coordinates")
+            
+            # LOAD SEED4D TARGET CAMERAS (spherical views)
             if self.selected_output_transform and os.path.exists(self.selected_output_transform):
-                print(f"🎯 Loading SEED4D target coordinates from: {self.selected_output_transform}")
+                print(f"Loading SEED4D target coordinates from: {self.selected_output_transform}")
                 target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = \
                     readPixelSplatCamera(self.selected_output_transform, 
-                                       resolution=self.view_sampler.cfg.output_target_resolution,
+                                       resolution=self.target_resolution[0],
                                        near=self.cfg.z_near, far=self.cfg.z_far)
                 
-                # 🔧 MODIFY CAMERA INDEX 3 FOR TARGET CAMERAS TOO (if needed)
+                # Convert to tensor if needed
                 if isinstance(target_extrinsics_matrices, list):
                     target_extrinsics_matrices = torch.stack(target_extrinsics_matrices)
-                target_extrinsics_matrices = self._modify_camera_index_3(target_extrinsics_matrices)
+                
+                # APPLY SAME CAMERA MODIFICATIONS TO TARGET CAMERAS
+                target_extrinsics_matrices = self._modify_cameras_y_axis(
+                    target_extrinsics_matrices, 
+                    {3: 0.0}  # Apply same modification as context cameras
+                )
                 
                 # Store target data
                 self.all_texture_target[example_id] = target_image_paths
@@ -433,9 +446,14 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
                     self.intrinsics_target[example_id] = target_intrinsics_matrices
                     self.extrinsics_target[example_id] = target_extrinsics_matrices
                 
-                print(f"   ✅ Target: {len(target_image_paths)} SEED4D spherical cameras")
+                # Ensure extrinsics are proper tensors with correct shape
+                if not isinstance(self.extrinsics_target[example_id], torch.Tensor):
+                    self.extrinsics_target[example_id] = torch.tensor(self.extrinsics_target[example_id], dtype=torch.float32)
                 
-                # 🔍 DEBUG: Analyze coordinate systems
+                print(f"   Target extrinsics shape: {self.extrinsics_target[example_id].shape}")
+                print(f"   Target: {len(target_image_paths)} SEED4D spherical cameras")
+                
+                # DEBUG: Analyze coordinate systems
                 self.debug_coordinate_systems(
                     self.extrinsics_context[example_id],
                     self.extrinsics_target[example_id], 
@@ -443,7 +461,7 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
                 )
                 
             else:
-                print(f"❌ SEED4D target transform not found: {self.selected_output_transform}")
+                print(f"SEED4D target transform not found: {self.selected_output_transform}")
                 # Create dummy targets as fallback
                 num_dummy_targets = 20
                 self.all_texture_target[example_id] = [f"dummy_target_{i}.png" for i in range(num_dummy_targets)]
@@ -457,17 +475,48 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
         
         # Ensure the sample is loaded
         if example_id not in self.all_texture_context:
-            print(f"⚠️ Sample {example_id} not in cache, loading on-demand...")
+            print(f"Sample {example_id} not in cache, loading on-demand...")
             self.load_example_id(index)
         
-        print(f"\n📊 GETITEM DEBUG (index {index}):")
+        print(f"\nGETITEM DEBUG (index {index}):")
         print(f"  Available context views: {len(self.all_texture_context[example_id])}")
         print(f"  Available target views: {len(self.all_texture_target[example_id])}")
+        print(f"  Stage: {self.stage}")
+        print(f"  View sampler config - num_context_views: {self.view_sampler.cfg.num_context_views}")
+        print(f"  View sampler config - num_target_views: {self.view_sampler.cfg.num_target_views}")
+        
+        # Debug extrinsics shapes before sampling
+        context_extrinsics = self.extrinsics_context[example_id]
+        target_extrinsics = self.extrinsics_target[example_id]
+        print(f"  Context extrinsics shape: {context_extrinsics.shape}")
+        print(f"  Target extrinsics shape: {target_extrinsics.shape}")
+        
+        # Check for NaN or infinite values that could cause probability issues
+        if torch.isnan(context_extrinsics).any():
+            print(f"  WARNING: Context extrinsics contains NaN values!")
+        if torch.isinf(context_extrinsics).any():
+            print(f"  WARNING: Context extrinsics contains infinite values!")
+        if torch.isnan(target_extrinsics).any():
+            print(f"  WARNING: Target extrinsics contains NaN values!")
+        if torch.isinf(target_extrinsics).any():
+            print(f"  WARNING: Target extrinsics contains infinite values!")
         
         # Sample views using the same strategy as SEED4D
-        index_context, index_target = self.view_sampler.sample("SEED", 
-                                                              self.extrinsics_context[example_id], 
-                                                              self.extrinsics_target[example_id])
+        try:
+            index_context, index_target = self.view_sampler.sample("SEED", 
+                                                                  context_extrinsics, 
+                                                                  target_extrinsics)
+        except Exception as e:
+            print(f"Error in view sampler: {e}")
+            print(f"Context extrinsics shape: {context_extrinsics.shape}")
+            print(f"Target extrinsics shape: {target_extrinsics.shape}")
+            
+            # Fallback: use all 6 context cameras and a small number of target cameras
+            num_context = len(self.all_texture_context[example_id])  # Use all available context cameras
+            num_target = min(2, len(self.all_texture_target[example_id]))  # Use 2 target cameras
+            index_context = torch.arange(num_context)  # Use all 6 context cameras
+            index_target = torch.arange(num_target)
+            print(f"Using fallback sampling: context={index_context} (all {num_context} cameras), target={index_target}")
 
         print(f"  Sampled context indices: {index_context}")
         print(f"  Sampled target indices: {index_target}")
