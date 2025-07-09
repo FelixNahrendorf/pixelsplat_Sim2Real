@@ -68,7 +68,7 @@ test:
   #output_path: /app/outputs/ego_exo_seed4dinvisible_on_carla_ckpt13_fix_100spawns #seed4d
   #output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td1_rend1_2
   #output_path: /app/outputs/ego_exo_nuscene_on_nuscene_ckpt_fix #nuscene_ego_exo 
-  output_path: /app/outputs/ego_exo_nuscene_on_carla_ckpt_changed_transform_fov_means_images_switched #nuscene_ego_exo
+  output_path: /app/outputs/ego_exo_nuscene_on_carla_ckpt_changed_transform_nuscenes_adjusted_match_carla_format_native_nuscenes_adjusted_match_carla_format_native_yaw+pi_switch_pitch_roll #nuscene_ego_exo
   compute_scores: false
   save_image: true
   save_video: true

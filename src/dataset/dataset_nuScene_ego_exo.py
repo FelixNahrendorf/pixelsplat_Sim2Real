@@ -35,7 +35,7 @@ from pyquaternion.quaternion import Quaternion
 NUSCENE_DATA_DIR = "/app/datasets/nuscenes_full/" 
 assert NUSCENE_DATA_DIR is not None, "Update the location of the NUSCENE Dataset"
 
-# Fixed SEED4D transform paths
+# Fixed SEED4D transform paths of mean Nuscene extrinsics/intrinsics in SEED4D format
 SEED4D_CONTEXT_TRANSFORM = '/app/code/seed4d/data/Town01/ClearNoon/vehicle.audi.tt/spawn_point_1/step_0/ego_vehicle/nuscenes_invisible/transforms/transforms_ego.json'
 SEED4D_TARGET_TRANSFORM = '/app/code/seed4d/data/Town01/ClearNoon/vehicle.audi.tt/spawn_point_1/step_0/ego_vehicle/sphere_invisible/transforms/transforms_ego.json'
 

@@ -31,7 +31,7 @@ trainer:
 
 test:
   depth_mode: depth
-  output_path: /app/outputs/ego_exo_nuscene_on_carla_ckpt_changed_transform_fov_means_images_switched
+  output_path: /app/outputs/ego_exo_nuscene_on_carla_ckpt_changed_transform_nuscenes_adjusted_match_carla_format_native_nuscenes_adjusted_match_carla_format_native_yaw+pi_switch_pitch_roll
   compute_scores: true
 
 
