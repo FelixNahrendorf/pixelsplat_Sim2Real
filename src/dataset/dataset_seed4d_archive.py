@@ -102,8 +102,8 @@ class Dataset_SEED4D(Dataset):
         self.output_spawns = np.array(self.output_images)
         
         # # Selected randomly to train just on a single spawn point
-        self.input_spawns = np.array(self.input_images)[:10]
-        self.output_spawns = np.array(self.output_images)[:10]
+        #self.input_spawns = np.array(self.input_images)[:10]
+        #self.output_spawns = np.array(self.output_images)[:10]
         
         # configuring relevant resolution for inward and outward facing cameras
         

@@ -25,7 +25,7 @@ data_loader:
 
 test:
   depth_mode: depth
-  output_path: /app/outputs/ego_exo_seed4d_baseline_changed_sensorindex_all_inviewsampler
+  output_path: /app/outputs/ego_exo_sensitivity_analysis_baseline_nuscene_adjusted_2 #z+std
   compute_scores: true
 
 trainer:

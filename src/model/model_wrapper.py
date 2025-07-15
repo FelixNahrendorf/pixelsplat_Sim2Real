@@ -382,7 +382,7 @@ class ModelWrapper(LightningModule):
             gaussians = self.encoder(
                 batch["context"],
                 self.global_step,
-                deterministic=False,  #RESTORED: Use deterministic=True for consistent test results - EDIT: # DEBUG: changed to False for testing
+                deterministic=True,  #RESTORED: Use deterministic=True for consistent test results - EDIT: # DEBUG: changed to False for testing
             )
         with self.benchmarker.time("decoder", num_calls=v):
             output = self.decoder.forward(
