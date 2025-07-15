@@ -1,3 +1,5 @@
+#This file is used for the sensitivity analysis of the SEED4D dataset regarding the camera parameters
+
 import os
 import json
 import random
@@ -28,8 +30,11 @@ from .view_sampler import ViewSampler, ViewSamplerCfg
 from .dataset_readers import readPixelSplatCamera
 from ..misc.general_utils import img_path_to_Torch, depth_path_to_Torch
 
-SEED4D_DATASET_ROOT = '/app/data/seed4d/static/' # Change this to your data directory 
+SEED4D_DATASET_ROOT = '/app/data/seed4d/static/' 
 assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
+
+SEED4D_DATASET_ROOT_10_SCENES = '/app/code/seed4d/data_sensititvity_analysis_baseline_nuscene_adjusted/static/'  
+assert SEED4D_DATASET_ROOT_10_SCENES is not None, "Update the location of the SEED4D Dataset"
 
 LIDAR_DATASET_ROOT = '/app/new/seed4d/pseudo_lidar/' # Will be directory to save pseudo lidar 
 
@@ -81,7 +86,7 @@ class Dataset_SEED4D(Dataset):
             self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_train.json' for spawn_dir in self.spawn_dirs]
             
         elif (self.stage == 'val'): # val stands for validation
-            self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns]
+            self.parent_dirs = [SEED4D_DATASET_ROOT_10_SCENES + 'Town' + town + data_dir_naming for town in training_towns]
             self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
@@ -89,7 +94,7 @@ class Dataset_SEED4D(Dataset):
             self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
             
         elif (self.stage == 'test'): # val stands for validation
-            self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in testing_towns]
+            self.parent_dirs = [SEED4D_DATASET_ROOT_10_SCENES + 'Town' + town + data_dir_naming for town in testing_towns]
             self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
