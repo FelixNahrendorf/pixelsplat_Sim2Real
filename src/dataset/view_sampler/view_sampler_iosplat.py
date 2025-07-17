@@ -47,11 +47,12 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
         """
         temperature = 1
         if self.cfg.num_context_views<6:
-            Choice = [0, 1, 5, 3, 4, 2]
+            Choice = [0, 1, 2, 3, 4, 5] #Choice = [0, 1, 5, 3, 4, 2]
             start = random.randint(0, len(Choice) - 1)
             index_context = torch.tensor(list(islice(cycle(Choice), start, start + self.cfg.num_context_views))).to(dtype=torch.int64)
         else:
-            index_context = torch.from_numpy(np.array([0, 1, 5, 3, 4, 2])).to(dtype=torch.int64, device=device)
+            #index_context = torch.from_numpy(np.array([0, 1, 5, 3, 4, 2])).to(dtype=torch.int64, device=device)
+            index_context = torch.from_numpy(np.array([0, 1, 2, 3, 4, 5])).to(dtype=torch.int64, device=device)
             # index_context = torch.arange(0, 6, dtype=torch.int64, device=device)
         # #
         # # We will sample only those target views that are 'similar' to the context views
