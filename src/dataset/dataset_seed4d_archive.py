@@ -140,11 +140,20 @@ class Dataset_SEED4D(Dataset):
     
     def _filter_context_sensor_data(self, image_paths: List[str], intrinsics: torch.Tensor, extrinsics: torch.Tensor) -> tuple:
         """Filter CONTEXT sensor data based on selected sensor indices. Only applies to ego vehicle sensors."""
-        print('Filtering context sensors - Original count:', len(image_paths))
-        filtered_image_paths = [image_paths[i] for i in self.sensor_indices if i < len(image_paths)]
-        filtered_intrinsics = [intrinsics[i] for i in self.sensor_indices if i < len(intrinsics)]
-        filtered_extrinsics = [extrinsics[i] for i in self.sensor_indices if i < len(extrinsics)]
-        print('Filtering context sensors - Filtered count:', len(filtered_image_paths))
+        print(f'Filtering context sensors - Original count: {len(image_paths)}')
+        print(f'Selected sensor indices: {self.sensor_indices}')
+        
+        # Filter image paths using the sensor indices directly
+        filtered_image_paths = [image_paths[i] for i in self.sensor_indices]
+        
+        # Filter tensors using tensor indexing with the sensor indices
+        filtered_intrinsics = intrinsics[self.sensor_indices]
+        filtered_extrinsics = extrinsics[self.sensor_indices]
+        
+        print(f'Filtering context sensors - Filtered count: {len(filtered_image_paths)}')
+        print(f'Filtered intrinsics shape: {filtered_intrinsics.shape}')
+        print(f'Filtered extrinsics shape: {filtered_extrinsics.shape}')
+        
         return filtered_image_paths, filtered_intrinsics, filtered_extrinsics
     
     def __len__(self):
