@@ -31,7 +31,7 @@ trainer:
 
 test:
   depth_mode: depth
-  output_path: /app/outputs/ego_exo_nuscene_on_carla_ckpt_changed_transform_nuscenes_adjusted_nuscenes_transforms
+  output_path: /app/outputs/ego_exo_nuscene_on_carla_ckpt_original_extrinsics_from_nuscene
   compute_scores: true
 
 
