@@ -35,9 +35,172 @@ from pyquaternion.quaternion import Quaternion
 NUSCENE_DATA_DIR = "/app/datasets/nuscenes_full/" 
 assert NUSCENE_DATA_DIR is not None, "Update the location of the NUSCENE Dataset"
 
-# Fixed SEED4D transform paths of mean Nuscene extrinsics/intrinsics in SEED4D format
-SEED4D_CONTEXT_TRANSFORM = '/app/code/seed4d/data/Town01/ClearNoon/vehicle.audi.tt/spawn_point_1/step_0/ego_vehicle/nuscenes_invisible/transforms/transforms_ego.json'
+# Fixed SEED4D transform paths for target cameras only
 SEED4D_TARGET_TRANSFORM = '/app/code/seed4d/data/Town01/ClearNoon/vehicle.audi.tt/spawn_point_1/step_0/ego_vehicle/sphere_invisible/transforms/transforms_ego.json'
+
+################################################################################################
+##################### Camera Pose Transformation Functions #####################
+
+def apply_coordinate_transformation(position):
+    """
+    Apply coordinate transformation:
+    x_new = -z_old
+    y_new = x_old
+    z_new = -y_old
+    """
+    x_old, y_old, z_old = position
+    return np.array([-z_old, x_old, -y_old])
+
+def apply_rotation_transformation(quaternion):
+    """
+    Apply rotation transformation to match the coordinate system change
+    """
+    # Convert to rotation matrix
+    rotation_matrix = quaternion.rotation_matrix
+    
+    # Transformation matrix
+    T = np.array([
+        [ 0,  0, -1],
+        [ 1,  0,  0],
+        [ 0, -1,  0]
+    ])
+    
+    # Apply transformation: R_new = T * R_old
+    transformed_rotation_matrix = T @ rotation_matrix
+    
+    # Convert back to quaternion
+    transformed_quaternion = Quaternion(matrix=transformed_rotation_matrix)
+    
+    return transformed_quaternion
+
+def quaternion_to_transform_matrix(quaternion, translation):
+    """
+    Convert quaternion and translation to 4x4 transformation matrix
+    """
+    rotation_matrix = quaternion.rotation_matrix
+    transform_matrix = np.eye(4)
+    transform_matrix[:3, :3] = rotation_matrix
+    transform_matrix[:3, 3] = translation
+    return transform_matrix
+
+def reorder_camera_data(camera_data):
+    """
+    Reorder camera data from original order (0,1,2,3,4,5) to new order (0,1,5,3,4,2)
+    """
+    reorder_mapping = {0: 0, 1: 1, 2: 5, 3: 3, 4: 4, 5: 2}
+    camera_list = list(camera_data.items())
+    reordered_camera_data = {}
+    
+    for new_idx in range(len(camera_list)):
+        if new_idx < len(camera_list):
+            old_idx = reorder_mapping[new_idx]
+            if old_idx < len(camera_list):
+                camera_name, data = camera_list[old_idx]
+                reordered_camera_data[camera_name] = data
+    
+    return reordered_camera_data
+
+def transform_camera_poses(camera_input_data):
+    """
+    Transform camera pose data and return the transformed transforms JSON structure.
+    
+    Args:
+        camera_input_data: Dictionary with camera data containing:
+            - For each camera: {
+                'translation': [x, y, z],
+                'rotation': [w, x, y, z] or Quaternion object,
+                'camera_intrinsic': 3x3 matrix or list,
+                'image_width': int (optional, default 1600),
+                'image_height': int (optional, default 900)
+              }
+    
+    Returns:
+        dict: Transformed transforms JSON structure
+    """
+    
+    # Process each camera
+    camera_data = {}
+    for camera_name, data in camera_input_data.items():
+        # Get original position and rotation
+        original_translation = np.array(data['translation'])
+        
+        # Handle rotation input (could be quaternion object or list)
+        if isinstance(data['rotation'], Quaternion):
+            original_quaternion = data['rotation']
+        else:
+            # Assume [w, x, y, z] format
+            rot = data['rotation']
+            original_quaternion = Quaternion(w=rot[0], x=rot[1], y=rot[2], z=rot[3])
+        
+        # Apply x-axis flip
+        x_axis_flip = Quaternion(axis=[1, 0, 0], angle=np.pi)
+        original_quaternion = original_quaternion * x_axis_flip
+        
+        # Apply coordinate transformation
+        transformed_translation = apply_coordinate_transformation(original_translation)
+        transformed_quaternion = apply_rotation_transformation(original_quaternion)
+        
+        # Create transformation matrix
+        transformed_transform_matrix = quaternion_to_transform_matrix(
+            transformed_quaternion, transformed_translation
+        )
+        
+        # Get camera intrinsics
+        camera_intrinsic = np.array(data['camera_intrinsic'])
+        fl_x = camera_intrinsic[0, 0]
+        fl_y = camera_intrinsic[1, 1]
+        cx = camera_intrinsic[0, 2]
+        cy = camera_intrinsic[1, 2]
+        
+        # Get image dimensions (with defaults)
+        w = data.get('image_width', 1600)
+        h = data.get('image_height', 900)
+        
+        camera_data[camera_name] = {
+            'transform_matrix': transformed_transform_matrix,
+            'fl_x': float(fl_x),
+            'fl_y': float(fl_y),
+            'cx': float(cx),
+            'cy': float(cy),
+            'w': w,
+            'h': h
+        }
+    
+    # Reorder cameras
+    camera_data = reorder_camera_data(camera_data)
+    
+    # Create transformed transforms JSON structure
+    transformed_json = {
+        "camera_model": "OPENCV",
+        "k1": 0,
+        "k2": 0,
+        "p1": 0,
+        "p2": 0,
+        "frames": []
+    }
+    
+    # Process each camera in the reordered data
+    for idx, (camera_name, data) in enumerate(camera_data.items()):
+        frame = {
+            "file_path": f"../sensors/{idx}_rgb.png",
+            "depth_file_path": f"../sensors/{idx}_depth.png",
+            "semantic_segmentation_file_path": f"../sensors/{idx}_semantic_segmentation.png",
+            "instance_segmentation_file_path": f"../sensors/{idx}_instance_segmentation.png",
+            "transform_matrix": data['transform_matrix'].tolist(),
+            "fl_x": data['fl_x'],
+            "fl_y": data['fl_y'],
+            "cx": data['cx'],
+            "cy": data['cy'],
+            "w": data['w'],
+            "h": data['h'],
+            "camera_name": camera_name
+        }
+        
+        transformed_json["frames"].append(frame)
+    
+    return transformed_json
+
+################################################################################################
 
 @dataclass
 class Dataset_NUSCENE_EGO_EXOCfg(DatasetCfgCommon):
@@ -47,6 +210,7 @@ class Dataset_NUSCENE_EGO_EXOCfg(DatasetCfgCommon):
     max_fov: float
     z_near: float
     z_far: float
+    use_ego_pose: bool = False  # New flag to control ego pose usage
     
 class Dataset_NUSCENE_EGO_EXO(Dataset):
     cfg: Dataset_NUSCENE_EGO_EXOCfg
@@ -120,7 +284,7 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
                 self.samples.append(sample_token)
                 sample_token = sample["next"]
         
-        # SEED4D coordinate system setup (using fixed paths)
+        # SEED4D coordinate system setup (using fixed target path only)
         self._setup_seed4d_coordinate_system()
         
         # Configure resolutions
@@ -144,7 +308,7 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
         self.augment_flag = self.stage == 'train' and self.cfg.train_view_sampler.augment
         
         # Pre-load data into memory (with error handling)
-        print(f"Pre-loading {len(self.samples)} NuScenes samples with SEED4D coordinates...")
+        print(f"Pre-loading {len(self.samples)} NuScenes samples with transformed coordinates...")
         
         # Load all samples
         successful_loads = 0
@@ -159,39 +323,93 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
             except Exception as e:
                 print(f"Error loading sample {idx}: {e}")
                 print(f"   Sample ID: {self.samples[idx] if idx < len(self.samples) else 'N/A'}")
-                print(f"   SEED4D context transform: {self.selected_input_transform}")
-                print(f"   SEED4D target transform: {self.selected_output_transform}")
                 # Continue loading other samples instead of breaking
                 continue
         
         print(f"Successfully loaded {successful_loads}/{len(self.samples)} samples")
         
-        print(f"NuScenes Dataset with SEED4D coordinates, initialized for {self.stage} stage")
+        print(f"NuScenes Dataset with transformed coordinates, initialized for {self.stage} stage")
         print(f"Will use {len(self.samples)} samples with augmentation = {self.augment_flag}")
-        print(f"Using 6 NuScenes cameras with SEED4D sensors: {self.sensor_indices}")
-        print(f"Using fixed SEED4D transforms")
+        print(f"Using 6 NuScenes cameras with transformation: {self.sensor_indices}")
+        print(f"Ego pose usage: {'ENABLED' if self.cfg.use_ego_pose else 'DISABLED (calibrated_sensor only)'}")
     
     def _setup_seed4d_coordinate_system(self):
-        """Setup SEED4D coordinate system using fixed paths."""
+        """Setup SEED4D coordinate system using fixed target path only."""
         
-        # KEY: Use fixed SEED4D coordinate transforms for BOTH context and target cameras
-        self.selected_input_transform = SEED4D_CONTEXT_TRANSFORM
+        # Only use fixed SEED4D coordinate transforms for target cameras
         self.selected_output_transform = SEED4D_TARGET_TRANSFORM
         
-        print(f"SEED4D Coordinate System Setup (Fixed Paths):")
-        print(f"   Context transform: {self.selected_input_transform}")
+        print(f"SEED4D Coordinate System Setup:")
+        print(f"   Context: Will read from NuScenes and transform")
         print(f"   Target transform: {self.selected_output_transform}")
         
-        # Verify files exist
-        if not os.path.exists(self.selected_input_transform):
-            print(f"WARNING: Context transform file not found: {self.selected_input_transform}")
-        else:
-            print(f"   Context transform file exists")
-            
+        # Verify target file exists
         if not os.path.exists(self.selected_output_transform):
             print(f"WARNING: Target transform file not found: {self.selected_output_transform}")
         else:
             print(f"   Target transform file exists")
+    
+    def _extract_nuscenes_camera_data(self, sample_token):
+        """
+        Extract camera data from NuScenes sample in the same way as dataset_nuScene.py
+        """
+        sample = self.nusc.get("sample", sample_token)
+        sample_frame_info = sample["data"]
+        
+        camera_input_data = {}
+        
+        print(f"Extracting camera data with ego_pose: {'ENABLED' if self.cfg.use_ego_pose else 'DISABLED'}")
+        
+        for camera_name in self.nuscenes_cameras:
+            if camera_name not in sample_frame_info:
+                print(f"Warning: Camera {camera_name} not found in sample")
+                continue
+                
+            # Get sensor data
+            sensor_data = self.nusc.get("sample_data", sample_frame_info[camera_name])
+            
+            # Get sensor pose information (calibrated_sensor)
+            sensor_pose_information = self.nusc.get(table_name="calibrated_sensor", 
+                                                  token=sensor_data["calibrated_sensor_token"])
+            sensor_intrinsic_matrix = np.array(sensor_pose_information["camera_intrinsic"])
+            sensor_pose_rotation = Quaternion(sensor_pose_information["rotation"])
+            sensor_pose_translation = np.array(sensor_pose_information["translation"])
+            
+            # Create sensor transform matrix (sensor relative to ego vehicle)
+            sensor_transform_matrix = transform_matrix(sensor_pose_translation, sensor_pose_rotation)
+            
+            # Conditionally include ego pose
+            if self.cfg.use_ego_pose:
+                # Get ego pose information (vehicle position in world)
+                ego_pose_information = self.nusc.get(table_name="ego_pose", token=sensor_data["ego_pose_token"])
+                ego_pose_rotation = Quaternion(ego_pose_information["rotation"])
+                ego_pose_translation = np.array(ego_pose_information["translation"])
+                ego_transform_matrix = transform_matrix(ego_pose_translation, ego_pose_rotation)
+                
+                # Combine ego pose and sensor calibration
+                final_transform_matrix = ego_transform_matrix @ sensor_transform_matrix
+                print(f"   {camera_name}: Using ego_pose + calibrated_sensor")
+            else:
+                # Use only sensor calibration (relative to ego vehicle)
+                final_transform_matrix = sensor_transform_matrix
+                print(f"   {camera_name}: Using calibrated_sensor only (relative to ego)")
+            
+            # Extract translation and rotation for transformation
+            translation = final_transform_matrix[:3, 3]
+            rotation_matrix = final_transform_matrix[:3, :3]
+            rotation_quaternion = Quaternion(matrix=rotation_matrix)
+            
+            # Store in format expected by transform_camera_poses
+            camera_input_data[camera_name] = {
+                'translation': translation.tolist(),
+                'rotation': [rotation_quaternion.w, rotation_quaternion.x, rotation_quaternion.y, rotation_quaternion.z],
+                'camera_intrinsic': sensor_intrinsic_matrix.tolist(),
+                'image_width': sensor_data.get("width", 1600),
+                'image_height': sensor_data.get("height", 900),
+                'image_path': os.path.join(NUSCENE_DATA_DIR, sensor_data["filename"])
+            }
+        
+        return camera_input_data
     
     def _modify_cameras_y_axis(self, extrinsics, y_offsets):
         """
@@ -227,9 +445,40 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
         
         return extrinsics
     
+    def save_transformed_json_debug(self, transformed_json, sample_token, output_dir='debug_transforms'):
+        """
+        Save transformed JSON data as debug files, similar to the original camera_pose_transformation_marius.py
+        """
+        # Create output directory if it doesn't exist
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Include ego pose flag in filename for clarity
+        ego_flag = "with_ego" if self.cfg.use_ego_pose else "no_ego"
+        transformed_json_path = os.path.join(output_dir, f'transforms_transformed_{ego_flag}_{sample_token[:8]}.json')
+        
+        print(f"Saving transformed JSON debug file...")
+        
+        # Save transformed JSON file
+        with open(transformed_json_path, 'w') as f:
+            json.dump(transformed_json, f, indent=4)
+        
+        print(f"Transformed transforms JSON saved to: {transformed_json_path}")
+        
+        # Print summary of transformation
+        print(f"\nTRANSFORMED JSON SUMMARY for sample {sample_token[:8]} ({'with ego pose' if self.cfg.use_ego_pose else 'calibrated sensor only'}):")
+        print(f"  Camera model: {transformed_json['camera_model']}")
+        print(f"  Number of frames: {len(transformed_json['frames'])}")
+        print(f"  Coordinate system: {'Global (ego + sensor)' if self.cfg.use_ego_pose else 'Ego-relative (sensor only)'}")
+        for i, frame in enumerate(transformed_json['frames']):
+            transform_matrix = np.array(frame['transform_matrix'])
+            position = transform_matrix[:3, 3]
+            print(f"  Frame {i} ({frame['camera_name']}): pos=[{position[0]:6.2f}, {position[1]:6.2f}, {position[2]:6.2f}]")
+        
+        return transformed_json_path
+
     def debug_coordinate_systems(self, context_extrinsics, target_extrinsics, sample_name=""):
-        """Debug function to analyze SEED4D coordinate systems."""
-        print(f"\nSEED4D COORDINATE SYSTEM ANALYSIS {sample_name}")
+        """Debug function to analyze coordinate systems."""
+        print(f"\nCOORDINATE SYSTEM ANALYSIS {sample_name}")
         print("=" * 60)
         
         # Extract positions (translation components)
@@ -243,7 +492,7 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
         else:
             target_positions = target_extrinsics[:, :3, 3]
         
-        print(f"SEED4D CONTEXT CAMERAS ({len(context_positions)} cameras):")
+        print(f"TRANSFORMED CONTEXT CAMERAS ({len(context_positions)} cameras):")
         print(f"  Sample positions (first 3):")
         for i, pos in enumerate(context_positions[:3]):
             print(f"    Camera {i}: [{pos[0]:8.2f}, {pos[1]:8.2f}, {pos[2]:8.2f}]")
@@ -296,7 +545,7 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
         return self.samples[index]
     
     def load_example_id(self, index):
-        """Load and cache data for a sample using SEED4D coordinates."""
+        """Load and cache data for a sample using transformed NuScenes coordinates."""
         example_id = self.get_example_id(index)
         
         if not hasattr(self, "all_texture_context"):
@@ -318,99 +567,64 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
             self.extrinsics_context[example_id] = []
             self.extrinsics_target[example_id] = []
             
-            # LOAD SEED4D CAMERA COORDINATES (for context cameras)
-            if self.selected_input_transform and os.path.exists(self.selected_input_transform):
-                print(f"Loading SEED4D context coordinates from: {self.selected_input_transform}")
-                seed4d_context_paths, seed4d_context_intrinsics, seed4d_context_extrinsics = \
-                    readPixelSplatCamera(self.selected_input_transform, 
-                                       resolution=self.context_resolution[0],
-                                       near=self.cfg.z_near, far=self.cfg.z_far)
-                
-                # Convert to tensor if needed
-                if isinstance(seed4d_context_extrinsics, list):
-                    seed4d_context_extrinsics = torch.stack(seed4d_context_extrinsics)
-                
-                # MODIFY CAMERAS Y-AXIS - Choose one of these options:
-                
-                # Option 1: Dictionary format (only modify specific cameras)
-                #seed4d_context_extrinsics = self._modify_cameras_y_axis(
-                #    seed4d_context_extrinsics, 
-                #    {3: 0.0}  # Only modify camera 3 (backwards compatibility)
-                #)
-                
-                # Option 2: List format (specify offset for each camera index)
-                seed4d_context_extrinsics = self._modify_cameras_y_axis(
-                    seed4d_context_extrinsics, 
-                    #[-0.811, -0.667, -0.651, 0.856, 0.142, 0.139]  
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] 
-                )
-                
-                # Option 3: Multiple specific cameras with different offsets
-                # seed4d_context_extrinsics = self._modify_cameras_y_axis(
-                #     seed4d_context_extrinsics, 
-                #     {0: 1.0, 2: -0.5, 4: 2.0}  # Camera 0: +1.0, Camera 2: -0.5, Camera 4: +2.0
-                # )
-                
-                # Filter to first 6 sensors to match 6 NuScenes cameras (indices 0-5)
-                valid_sensor_indices = list(range(6))  # Always use 0, 1, 2, 3, 4, 5
-                
-                print(f"   Using first 6 SEED4D sensors: {valid_sensor_indices}")
-                
-                seed4d_context_paths = [seed4d_context_paths[i] for i in valid_sensor_indices if i < len(seed4d_context_paths)]
-                
-                if isinstance(seed4d_context_intrinsics, list):
-                    seed4d_context_intrinsics = [seed4d_context_intrinsics[i] for i in valid_sensor_indices if i < len(seed4d_context_intrinsics)]
-                    seed4d_context_extrinsics = seed4d_context_extrinsics[[i for i in valid_sensor_indices if i < len(seed4d_context_extrinsics)]]
-                else:
-                    # Handle tensor case
-                    valid_indices = [i for i in valid_sensor_indices if i < len(seed4d_context_intrinsics)]
-                    seed4d_context_intrinsics = seed4d_context_intrinsics[valid_indices]
-                    seed4d_context_extrinsics = seed4d_context_extrinsics[valid_indices]
-                
-                print(f"   Selected {len(seed4d_context_paths)} SEED4D context cameras")
-            else:
-                print(f"SEED4D context transform not found: {self.selected_input_transform}")
-                return
+            # EXTRACT NUSCENES CAMERA DATA (same as dataset_nuScene.py)
+            print(f"Extracting NuScenes camera data...")
+            camera_input_data = self._extract_nuscenes_camera_data(example_id)
             
-            # LOAD NUSCENES IMAGES (but use SEED4D coordinates)
-            sample = self.nusc.get("sample", example_id)
+            # TRANSFORM CAMERA POSES using the transformation function
+            print(f"Applying coordinate transformation...")
+            transformed_json = transform_camera_poses(camera_input_data)
+            
+            # DEBUG: Save transformed JSON file
+            self.save_transformed_json_debug(transformed_json, example_id)
+            
+            # Extract transformed data
+            transformed_frames = transformed_json["frames"]
+            
+            # Process transformed context data
             nuscenes_image_paths = []
+            transformed_intrinsics = []
+            transformed_extrinsics = []
             
-            # Get NuScenes image paths - exactly 6 cameras to match 6 SEED4D sensors
-            for i in range(6):  # Always use exactly 6 cameras
-                if i < len(self.nuscenes_cameras):
-                    camera_name = self.nuscenes_cameras[i]
-                    if camera_name in sample["data"]:
-                        camera_token = sample["data"][camera_name]
-                        camera_data = self.nusc.get("sample_data", camera_token)
-                        image_path = os.path.join(NUSCENE_DATA_DIR, camera_data["filename"])
-                        nuscenes_image_paths.append(image_path)
-                        print(f"   NuScenes {camera_name}: {camera_data['filename']}")
-                    else:
-                        print(f"   Missing camera {camera_name} in sample")
-                        # Use a black image placeholder if camera is missing
-                        nuscenes_image_paths.append(None)
+            for frame_data in transformed_frames:
+                # Get image path from original camera data
+                camera_name = frame_data["camera_name"]
+                if camera_name in camera_input_data:
+                    image_path = camera_input_data[camera_name]["image_path"]
+                    nuscenes_image_paths.append(image_path)
+                    print(f"   {camera_name}: {os.path.basename(image_path)}")
                 else:
-                    # This shouldn't happen since we have exactly 6 NuScenes cameras
-                    print(f"   Error: Trying to access camera index {i} but only have {len(self.nuscenes_cameras)} cameras")
                     nuscenes_image_paths.append(None)
+                
+                # Extract intrinsics
+                intrinsic_matrix = torch.tensor([
+                    [frame_data["fl_x"], 0, frame_data["cx"]],
+                    [0, frame_data["fl_y"], frame_data["cy"]],
+                    [0, 0, 1]
+                ], dtype=torch.float32)
+                transformed_intrinsics.append(intrinsic_matrix)
+                
+                # Extract extrinsics
+                extrinsic_matrix = torch.tensor(frame_data["transform_matrix"], dtype=torch.float32)
+                transformed_extrinsics.append(extrinsic_matrix)
             
-            # Store context data: NuScenes images + SEED4D coordinates
+            # Convert to tensors
+            transformed_intrinsics = torch.stack(transformed_intrinsics)
+            transformed_extrinsics = torch.stack(transformed_extrinsics)
+            
+            # APPLY CAMERA Y-AXIS MODIFICATIONS (optional)
+            transformed_extrinsics = self._modify_cameras_y_axis(
+                transformed_extrinsics, 
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # No modifications by default
+            )
+            
+            # Store context data: NuScenes images + Transformed coordinates
             self.all_texture_context[example_id] = nuscenes_image_paths
-            
-            if isinstance(seed4d_context_intrinsics, list):
-                self.intrinsics_context[example_id] = torch.stack(seed4d_context_intrinsics)
-                self.extrinsics_context[example_id] = seed4d_context_extrinsics
-            else:
-                self.intrinsics_context[example_id] = seed4d_context_intrinsics
-                self.extrinsics_context[example_id] = seed4d_context_extrinsics
-            
-            # Ensure extrinsics are proper tensors with correct shape
-            if not isinstance(self.extrinsics_context[example_id], torch.Tensor):
-                self.extrinsics_context[example_id] = torch.tensor(self.extrinsics_context[example_id], dtype=torch.float32)
+            self.intrinsics_context[example_id] = transformed_intrinsics
+            self.extrinsics_context[example_id] = transformed_extrinsics
             
             print(f"   Context extrinsics shape: {self.extrinsics_context[example_id].shape}")
-            print(f"   Context: {len(self.all_texture_context[example_id])} NuScenes images with SEED4D coordinates")
+            print(f"   Context: {len(self.all_texture_context[example_id])} NuScenes images with transformed coordinates")
             
             # LOAD SEED4D TARGET CAMERAS (spherical views)
             if self.selected_output_transform and os.path.exists(self.selected_output_transform):
@@ -521,7 +735,7 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
         print(f"  Sampled context indices: {index_context}")
         print(f"  Sampled target indices: {index_target}")
         
-        # Load context images (NuScenes images with SEED4D coordinates)
+        # Load context images (NuScenes images with transformed coordinates)
         context_images = []
         for image_path in np.array(self.all_texture_context[example_id])[index_context.numpy()]:
             if image_path and os.path.exists(image_path):
