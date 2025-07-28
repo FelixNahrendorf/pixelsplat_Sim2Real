@@ -1,6 +1,6 @@
 defaults:
-  - dataset: nuscene_ego_exo
-  #- dataset: nuscene #nuscene
+  #- dataset: nuscene_ego_exo
+  - dataset: nuscene #nuscene
   #- dataset: carla #carla
   #- dataset: seed4d #seed4d
   - model/encoder: epipolar
@@ -10,10 +10,10 @@ defaults:
   #- loss: [mse, mae] #seed4d
 
 wandb:
-  #project: pixelsplat_nuScene_td1_rend1_test_nuscene_ckpt #nuscene 
+  project: pixelsplat_nuScene_td1_rend1_test_nuscene_ckpt #nuscene 
   #project: pixelsplat_mae_test_carla #carla
   #project: pixelsplat_mae_test_seed4d #seed4d
-  project: pixelsplat_nuscene_ego_exo #nuscene_ego_exo
+  #project: pixelsplat_nuscene_ego_exo #nuscene_ego_exo
   entity: scene-representation-group
   name: placeholder
   mode: online
@@ -51,10 +51,10 @@ optimizer:
 
 checkpointing:
   #checkpoint for model trained on carla
-  load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
+  #load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
 
   #checkpoint for model trained on carla and then on nuscenes
-  #load: /app/code/pixelsplat_Sim2Real/outputs/carla_nuScenes_ckpt_basis/2024-11-08/09-31-36/checkpoints/epoch=318-step=400000.ckpt 
+  load: /app/code/pixelsplat_Sim2Real/outputs/carla_nuScenes_ckpt_basis/2024-11-08/09-31-36/checkpoints/epoch=318-step=400000.ckpt 
   every_n_train_steps: 20000
   save_top_k: -1
 
@@ -68,7 +68,8 @@ test:
   #output_path: /app/outputs/ego_exo_sensitivity_analysis_baseline_nuscene_adjusted #_z+std #seed4d
   #output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td1_rend1_2
   #output_path: /app/outputs/ego_exo_nuscene_on_nuscene_ckpt_fix #nuscene_ego_exo 
-  output_path: /app/outputs/ego_exo_nuscene_on_carla_ckpt_original_extrinsics_from_nuscene #nuscene_ego_exo
+  output_path: /app/outputs/nuscene_on_nuscene_ckpt_0shot_td1_rend1_test
+  #output_path: /app/outputs/ego_exo_nuscene_on_carla_ckpt_original_extrinsics_from_nuscene #nuscene_ego_exo
   compute_scores: false
   save_image: true
   save_video: true
