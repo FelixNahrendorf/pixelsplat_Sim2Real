@@ -253,7 +253,24 @@ class Dataset_NUSCENE(Dataset):
         ############### Loading Context/Conditional Information ###############
         context_images = features[reference_frame][index_context]
         context_extrinsics = extrinsics[reference_frame][index_context]
+
+        print('context_extrinsics shape', context_extrinsics.shape) ###DEBUG
+        print('context_extrinsics', context_extrinsics) ###DEBUG
+        #print('reference_frame shape', reference_frame.dtype) ###DEBUG
+        print('reference_frame', reference_frame) ###DEBUG
+        #print('index_context shape', index_context.dtype) ###DEBUG
+        print('index_context', index_context) ###DEBUG
+
         context_intrinsics = intrinsics[reference_frame][index_context]
+
+        print('context_intrinsics shape', context_intrinsics.shape) ###DEBUG
+        print('context_intrinsics', context_intrinsics) ###DEBUG
+        #print('reference_frame shape', reference_frame.dtype) ###DEBUG
+        print('reference_frame', reference_frame) ###DEBUG
+        #print('index_context shape', index_context.dtype) ###DEBUG
+        print('index_context', index_context) ###DEBUG
+
+
         #######################################################################
         ################ Loading Inference Target Information #################
         target_images = features[target_frame][index_target]
@@ -284,6 +301,7 @@ class Dataset_NUSCENE(Dataset):
                     },
                     "scene": "nuScene",
                     "point_cloud": points}
+        #print('example', example) ###DEBUG
         return example
     
 ################################################################################################
@@ -336,11 +354,12 @@ def batch_collate_func(batch):
                         "near": torch.stack([batch_elem["render"]["near"] for batch_elem in batch]),
                         "far": torch.stack([batch_elem["render"]["far"] for batch_elem in batch]),
                         "index": torch.stack([batch_elem["render"]["index"] for batch_elem in batch])}}
+    #print ('batch_example', batch_example) ###DEBUG
     return batch_example
 
 ######################################################################
 # from --> nuscenes-devkit/python-sdk/nuscenes/utils/geometry_utils.py
-def transform_matrix(translation: np.ndarray = np.array([0, 0, 0]),
+'''def transform_matrix(translation: np.ndarray = np.array([0, 0, 0]),
                      rotation: Quaternion = Quaternion([1, 0, 0, 0]),
                      inverse: bool = False) -> np.ndarray:
     """
@@ -359,4 +378,85 @@ def transform_matrix(translation: np.ndarray = np.array([0, 0, 0]),
     else:
         tm[:3, :3] = rotation.rotation_matrix
         tm[:3, 3] = np.transpose(np.array(translation))
-    return tm
+
+    print('start') ###DEBUG
+    print('rotation', rotation) ###DEBUG
+    print('translation', translation) ###DEBUG
+    print('tm', tm)
+    print('stop') ###DEBUG
+    return tm'''
+
+
+### new implementation of transformation ###
+
+def apply_coordinate_transformation(position):
+    """
+    Apply coordinate transformation:
+    x_new = -z_old
+    y_new = x_old
+    z_new = -y_old
+    """
+    x_old, y_old, z_old = position
+    return np.array([-z_old, x_old, -y_old])
+
+def apply_rotation_transformation(quaternion):
+    """
+    Apply rotation transformation to match the coordinate system change
+    """
+    # Convert to rotation matrix
+    rotation_matrix = quaternion.rotation_matrix
+    
+    # Transformation matrix
+    T = np.array([
+        [ 0,  0, -1],
+        [ 1,  0,  0],
+        [ 0, -1,  0]
+    ])
+    
+    # Apply transformation: R_new = T * R_old
+    transformed_rotation_matrix = T @ rotation_matrix
+    
+    # Convert back to quaternion
+    transformed_quaternion = Quaternion(matrix=transformed_rotation_matrix)
+    
+    return transformed_quaternion
+
+def quaternion_to_transform_matrix(quaternion, translation):
+    """
+    Convert quaternion and translation to 4x4 transformation matrix
+    """
+    rotation_matrix = quaternion.rotation_matrix
+    transform_matrix = np.eye(4)
+    transform_matrix[:3, :3] = rotation_matrix
+    transform_matrix[:3, 3] = translation
+    return transform_matrix
+
+def transform_matrix(translation: np.ndarray = np.array([0, 0, 0]),
+                     rotation: Quaternion = Quaternion([1, 0, 0, 0]),
+                     inverse: bool = False) -> np.ndarray:
+    """
+    Convert pose to transformation matrix.
+    new transformation from felix code
+    """
+
+    # Apply x-axis flip
+    x_axis_flip = Quaternion(axis=[1, 0, 0], angle=np.pi)
+    original_quaternion = rotation * x_axis_flip
+        
+    # Apply coordinate transformation
+    transformed_translation = apply_coordinate_transformation(translation)
+    transformed_quaternion = apply_rotation_transformation(original_quaternion)
+        
+    # Create transformation matrix
+    transformed_transform_matrix = quaternion_to_transform_matrix(
+        transformed_quaternion, transformed_translation
+    )
+
+    #print('start') ###DEBUG
+    #print('rotation', rotation) ###DEBUG
+    #print('translation', translation) ###DEBUG
+    #print('transformed_transform_matrix', transformed_transform_matrix) ###DEBUG
+    #print('stop') ###DEBUG
+
+
+    return transformed_transform_matrix
