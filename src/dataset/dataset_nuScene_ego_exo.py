@@ -36,7 +36,7 @@ NUSCENE_DATA_DIR = "/app/datasets/nuscenes_full/"
 assert NUSCENE_DATA_DIR is not None, "Update the location of the NUSCENE Dataset"
 
 # Fixed SEED4D transform paths for target cameras only
-SEED4D_TARGET_TRANSFORM = '/app/code/seed4d/data/Town01/ClearNoon/vehicle.audi.tt/spawn_point_1/step_0/ego_vehicle/sphere_invisible/transforms/transforms_ego.json'
+SEED4D_TARGET_TRANSFORM = '/app/code/seed4d/data_analysis/data_seed4d/Town01/ClearNoon/vehicle.audi.tt/spawn_point_1/step_0/ego_vehicle/sphere_invisible/transforms/transforms_ego.json'
 
 ################################################################################################
 ##################### Camera Pose Transformation Functions #####################
@@ -410,40 +410,7 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
             }
         
         return camera_input_data
-    
-    def _modify_cameras_y_axis(self, extrinsics, y_offsets):
-        """
-        Modify Y-axis translation component for cameras with individual offsets.
-        
-        Args:
-            extrinsics: Camera extrinsics (list or tensor)
-            y_offsets: Dictionary or list of Y-axis offsets for each camera index
-                       e.g., {0: 1.0, 3: -0.5, 5: 2.0} or [1.0, 0.0, 0.0, -0.5, 0.0, 2.0]
-        
-        Returns:
-            Modified extrinsics
-        """
-        # Convert to tensor if it's a list
-        if isinstance(extrinsics, list):
-            extrinsics = torch.stack(extrinsics)
-        
-        # Handle dictionary format
-        if isinstance(y_offsets, dict):
-            for camera_idx, offset in y_offsets.items():
-                if camera_idx < len(extrinsics) and offset != 0.0:
-                    original_y = extrinsics[camera_idx][1, 3].item()
-                    extrinsics[camera_idx][1, 3] += offset
-                    print(f"Camera {camera_idx}: Y-axis {original_y:.2f} -> {extrinsics[camera_idx][1, 3].item():.2f} (offset: {offset:+.2f})")
-        
-        # Handle list format
-        elif isinstance(y_offsets, (list, tuple)):
-            for camera_idx, offset in enumerate(y_offsets):
-                if camera_idx < len(extrinsics) and offset != 0.0:
-                    original_y = extrinsics[camera_idx][1, 3].item()
-                    extrinsics[camera_idx][1, 3] += offset
-                    print(f"Camera {camera_idx}: Y-axis {original_y:.2f} -> {extrinsics[camera_idx][1, 3].item():.2f} (offset: {offset:+.2f})")
-        
-        return extrinsics
+
     
     def save_transformed_json_debug(self, transformed_json, sample_token, output_dir='debug_transforms'):
         """
@@ -577,7 +544,100 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
             
             # DEBUG: Save transformed JSON file
             self.save_transformed_json_debug(transformed_json, example_id)
+### DEBUG: until here everything should be okay ###
+
+
+####copied code from hardcoded version start####
+
+            self.selected_input_transform = self.save_transformed_json_debug(transformed_json, example_id) #match between above code and pasted code from hardcoded version
+
+            if self.selected_input_transform and os.path.exists(self.selected_input_transform):
+                print(f"Loading SEED4D context coordinates from: {self.selected_input_transform}")
+                seed4d_context_paths, seed4d_context_intrinsics, seed4d_context_extrinsics = \
+                    readPixelSplatCamera(self.selected_input_transform, 
+                                       resolution=self.context_resolution[0],
+                                       near=self.cfg.z_near, far=self.cfg.z_far)
+                
+                # Convert to tensor if needed
+                if isinstance(seed4d_context_extrinsics, list):
+                    seed4d_context_extrinsics = torch.stack(seed4d_context_extrinsics)
+                
+                # Filter to first 6 sensors to match 6 NuScenes cameras (indices 0-5)
+                valid_sensor_indices = list(range(6))  # Always use 0, 1, 2, 3, 4, 5
+                
+                #print(f"   Using first 6 SEED4D sensors: {valid_sensor_indices}")
+                
+                seed4d_context_paths = [seed4d_context_paths[i] for i in valid_sensor_indices if i < len(seed4d_context_paths)]
+                
+                if isinstance(seed4d_context_intrinsics, list):
+                    seed4d_context_intrinsics = [seed4d_context_intrinsics[i] for i in valid_sensor_indices if i < len(seed4d_context_intrinsics)]
+                    seed4d_context_extrinsics = seed4d_context_extrinsics[[i for i in valid_sensor_indices if i < len(seed4d_context_extrinsics)]]
+                else:
+                    # Handle tensor case
+                    valid_indices = [i for i in valid_sensor_indices if i < len(seed4d_context_intrinsics)]
+                    seed4d_context_intrinsics = seed4d_context_intrinsics[valid_indices]
+                    seed4d_context_extrinsics = seed4d_context_extrinsics[valid_indices]
+                
+                print(f"   Selected {len(seed4d_context_paths)} SEED4D context cameras")
+            else:
+                print(f"SEED4D context transform not found: {self.selected_input_transform}")
+                return
             
+            # LOAD NUSCENES IMAGES (but use SEED4D coordinates)
+            sample = self.nusc.get("sample", example_id)
+            nuscenes_image_paths = []
+            
+            # Get NuScenes image paths - exactly 6 cameras to match 6 SEED4D sensors
+            for i in range(6):  # Always use exactly 6 cameras
+                if i < len(self.nuscenes_cameras):
+                    camera_name = self.nuscenes_cameras[i]
+                    if camera_name in sample["data"]:
+                        camera_token = sample["data"][camera_name]
+                        camera_data = self.nusc.get("sample_data", camera_token)
+                        image_path = os.path.join(NUSCENE_DATA_DIR, camera_data["filename"])
+                        nuscenes_image_paths.append(image_path)
+                        print(f"   NuScenes {camera_name}: {camera_data['filename']}")
+                    else:
+                        print(f"   Missing camera {camera_name} in sample")
+                        # Use a black image placeholder if camera is missing
+                        nuscenes_image_paths.append(None)
+                else:
+                    # This shouldn't happen since we have exactly 6 NuScenes cameras
+                    print(f"   Error: Trying to access camera index {i} but only have {len(self.nuscenes_cameras)} cameras")
+                    nuscenes_image_paths.append(None)
+            
+            # Store context data: NuScenes images + SEED4D coordinates
+            self.all_texture_context[example_id] = nuscenes_image_paths
+            print('nuscenes_image_paths', nuscenes_image_paths)
+            print('seed4d_context_paths', seed4d_context_paths)
+            #self.all_texture_context[example_id] = seed4d_context_paths
+
+
+            
+            if isinstance(seed4d_context_intrinsics, list):
+                self.intrinsics_context[example_id] = torch.stack(seed4d_context_intrinsics)
+                self.extrinsics_context[example_id] = seed4d_context_extrinsics
+            else:
+                self.intrinsics_context[example_id] = seed4d_context_intrinsics
+                self.extrinsics_context[example_id] = seed4d_context_extrinsics
+
+            
+            # Ensure extrinsics are proper tensors with correct shape
+            if not isinstance(self.extrinsics_context[example_id], torch.Tensor):
+                self.extrinsics_context[example_id] = torch.tensor(self.extrinsics_context[example_id], dtype=torch.float32)
+            
+            print(f"   Context extrinsics shape: {self.extrinsics_context[example_id].shape}")
+            print(f"   Context: {len(self.all_texture_context[example_id])} NuScenes images with SEED4D coordinates")
+
+
+
+####copied code from hardcoded version end####         
+            
+
+
+
+
+            '''
             # Extract transformed data
             transformed_frames = transformed_json["frames"]
             
@@ -612,11 +672,6 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
             transformed_intrinsics = torch.stack(transformed_intrinsics)
             transformed_extrinsics = torch.stack(transformed_extrinsics)
             
-            # APPLY CAMERA Y-AXIS MODIFICATIONS (optional)
-            transformed_extrinsics = self._modify_cameras_y_axis(
-                transformed_extrinsics, 
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # No modifications by default
-            )
             
             # Store context data: NuScenes images + Transformed coordinates
             self.all_texture_context[example_id] = nuscenes_image_paths
@@ -625,7 +680,8 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
             
             print(f"   Context extrinsics shape: {self.extrinsics_context[example_id].shape}")
             print(f"   Context: {len(self.all_texture_context[example_id])} NuScenes images with transformed coordinates")
-            
+            '''
+### DEBUG: from here everything should be okay ###     
             # LOAD SEED4D TARGET CAMERAS (spherical views)
             if self.selected_output_transform and os.path.exists(self.selected_output_transform):
                 print(f"Loading SEED4D target coordinates from: {self.selected_output_transform}")
@@ -637,12 +693,6 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
                 # Convert to tensor if needed
                 if isinstance(target_extrinsics_matrices, list):
                     target_extrinsics_matrices = torch.stack(target_extrinsics_matrices)
-                
-                # APPLY SAME CAMERA MODIFICATIONS TO TARGET CAMERAS
-                target_extrinsics_matrices = self._modify_cameras_y_axis(
-                    target_extrinsics_matrices, 
-                    {3: 0.0}  # Apply same modification as context cameras
-                )
                 
                 # Store target data
                 self.all_texture_target[example_id] = target_image_paths
@@ -702,8 +752,8 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
         # Debug extrinsics shapes before sampling
         context_extrinsics = self.extrinsics_context[example_id]
         target_extrinsics = self.extrinsics_target[example_id]
-        print(f"  Context extrinsics shape: {context_extrinsics.shape}")
-        print(f"  Target extrinsics shape: {target_extrinsics.shape}")
+        #print(f"  Context extrinsics shape: {context_extrinsics.shape}")
+        #print(f"  Target extrinsics shape: {target_extrinsics.shape}")
         
         # Check for NaN or infinite values that could cause probability issues
         if torch.isnan(context_extrinsics).any():
@@ -722,8 +772,8 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
                                                                   target_extrinsics)
         except Exception as e:
             print(f"Error in view sampler: {e}")
-            print(f"Context extrinsics shape: {context_extrinsics.shape}")
-            print(f"Target extrinsics shape: {target_extrinsics.shape}")
+            #print(f"Context extrinsics shape: {context_extrinsics.shape}")
+            #print(f"Target extrinsics shape: {target_extrinsics.shape}")
             
             # Fallback: use all 6 context cameras and a small number of target cameras
             num_context = len(self.all_texture_context[example_id])  # Use all available context cameras
