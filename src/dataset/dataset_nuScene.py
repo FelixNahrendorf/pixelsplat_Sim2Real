@@ -202,8 +202,14 @@ class Dataset_NUSCENE(Dataset):
             ego_pose_information = self.nusc.get(table_name="ego_pose", token=sensor_data["ego_pose_token"])
             ego_pose_rotation = Quaternion(ego_pose_information["rotation"])
             ego_pose_translation = np.array(ego_pose_information["translation"])
+
+            #print(f"  ego_pose_rotation: {ego_pose_rotation}")
+            #print(f"  ego_pose_translation: {ego_pose_translation}")
+
             # # # # # # # # # # # # # # # # # #
             ego_transform_matrix = transform_matrix(ego_pose_translation, ego_pose_rotation)
+
+            #print(f"  ego_transform_matrix: {ego_transform_matrix}")
             # # # # # # # # # # # # # # # # # #
             # # retrieving sensor placement w.r.t ego vehicle
             sensor_pose_information = self.nusc.get(table_name="calibrated_sensor", 
@@ -213,7 +219,15 @@ class Dataset_NUSCENE(Dataset):
             sensor_pose_translation = np.array(sensor_pose_information["translation"])
             # # # # # # # # # # # # # # # # # #
             sensor_transform_matrix = transform_matrix(sensor_pose_translation, sensor_pose_rotation)       
-            sensor_transform_matrix = ego_transform_matrix @ sensor_transform_matrix
+            #sensor_transform_matrix = ego_transform_matrix @ sensor_transform_matrix
+
+            #print("="*50,'before getting data from nuscene_reader.py') 
+            #print('sensor_pose_translation', sensor_pose_translation) ###DEBUG: 
+            #print('sensor_pose_rotation', sensor_pose_rotation) ###DEBUG: 
+            #print('intrinsic', sensor_intrinsic_matrix) ###DEBUG: 
+            #print('extrinsic', sensor_transform_matrix) ###DEBUG: 
+            #print('ego_T', ego_pose_translation) ###DEBUG: 
+
             # # # # # # # # # # # # # # # # # #       
             sensor_file_path = NUSCENE_DATA_DIR + sensor_data["filename"]
             sensor_information = CameraInfo(intrinsic=sensor_intrinsic_matrix, extrinsic=sensor_transform_matrix, 
@@ -221,6 +235,13 @@ class Dataset_NUSCENE(Dataset):
                                             height=sensor_data["height"], name=sensor_data["channel"], 
                                             ego_T=ego_pose_translation)
             frame_information.append(sensor_information)
+            #print('width, height', sensor_data["width"], sensor_data["height"]) ###DEBUG: values correct until here
+            
+            #print("="*50,'after getting data from nuscene_reader.py')
+            #print('sensor_information', sensor_information) ###DEBUG:               values not correct anymore
+            #print("="*50)
+
+
         ####################################################################
         self.all_frame_information[frame_token] = {"frame_info": frame_information, 
                                                    "lidar_token": frame_LIDAR_token}
@@ -253,23 +274,7 @@ class Dataset_NUSCENE(Dataset):
         ############### Loading Context/Conditional Information ###############
         context_images = features[reference_frame][index_context]
         context_extrinsics = extrinsics[reference_frame][index_context]
-
-        print('context_extrinsics shape', context_extrinsics.shape) ###DEBUG
-        print('context_extrinsics', context_extrinsics) ###DEBUG
-        #print('reference_frame shape', reference_frame.dtype) ###DEBUG
-        print('reference_frame', reference_frame) ###DEBUG
-        #print('index_context shape', index_context.dtype) ###DEBUG
-        print('index_context', index_context) ###DEBUG
-
         context_intrinsics = intrinsics[reference_frame][index_context]
-
-        print('context_intrinsics shape', context_intrinsics.shape) ###DEBUG
-        print('context_intrinsics', context_intrinsics) ###DEBUG
-        #print('reference_frame shape', reference_frame.dtype) ###DEBUG
-        print('reference_frame', reference_frame) ###DEBUG
-        #print('index_context shape', index_context.dtype) ###DEBUG
-        print('index_context', index_context) ###DEBUG
-
 
         #######################################################################
         ################ Loading Inference Target Information #################
@@ -301,7 +306,17 @@ class Dataset_NUSCENE(Dataset):
                     },
                     "scene": "nuScene",
                     "point_cloud": points}
-        #print('example', example) ###DEBUG
+     
+        print("=== FINAL DATA FED TO MODEL ===")
+        print("Context intrinsics shape:", example['context']['intrinsics'].shape)
+        print("Context intrinsics:\n", example['context']['intrinsics'])
+        print("Context extrinsics shape:", example['context']['extrinsics'].shape)
+        print("Context extrinsics:\n", example['context']['extrinsics'])
+        print("Target intrinsics shape:", example['target']['intrinsics'].shape) 
+        print("Target intrinsics:\n", example['target']['intrinsics'])
+        print("Target extrinsics shape:", example['target']['extrinsics'].shape)
+        print("Target extrinsics:\n", example['target']['extrinsics'])
+        print("="*50)
         return example
     
 ################################################################################################
@@ -357,7 +372,7 @@ def batch_collate_func(batch):
     #print ('batch_example', batch_example) ###DEBUG
     return batch_example
 
-######################################################################
+###################################################################### start of working transformation matrix
 # from --> nuscenes-devkit/python-sdk/nuscenes/utils/geometry_utils.py
 '''def transform_matrix(translation: np.ndarray = np.array([0, 0, 0]),
                      rotation: Quaternion = Quaternion([1, 0, 0, 0]),
@@ -382,10 +397,10 @@ def batch_collate_func(batch):
     print('start') ###DEBUG
     print('rotation', rotation) ###DEBUG
     print('translation', translation) ###DEBUG
-    print('tm', tm)
+    print('tm', tm) ###DEBUG
     print('stop') ###DEBUG
     return tm'''
-
+###################################################################### end of working transformation matrix
 
 ### new implementation of transformation ###
 
@@ -436,7 +451,7 @@ def transform_matrix(translation: np.ndarray = np.array([0, 0, 0]),
                      inverse: bool = False) -> np.ndarray:
     """
     Convert pose to transformation matrix.
-    new transformation from felix code
+    new transformation to match the format pixelsplat was trained on (format of seed4d/carla generator)
     """
 
     # Apply x-axis flip
@@ -452,11 +467,18 @@ def transform_matrix(translation: np.ndarray = np.array([0, 0, 0]),
         transformed_quaternion, transformed_translation
     )
 
-    #print('start') ###DEBUG
-    #print('rotation', rotation) ###DEBUG
-    #print('translation', translation) ###DEBUG
-    #print('transformed_transform_matrix', transformed_transform_matrix) ###DEBUG
-    #print('stop') ###DEBUG
+    # Apply sign inversion to match format of seed4d dataloader
+    #transformed_transform_matrix[0,1] *= -1
+    #transformed_transform_matrix[0,2] *= -1
+    #transformed_transform_matrix[1,1] *= -1
+    #transformed_transform_matrix[1,2] *= -1
+    #transformed_transform_matrix[2,1] *= -1
+    #transformed_transform_matrix[2,2] *= -1
 
+    #print('start') ###DEBUG
+    #print('transformed_quaternion', transformed_quaternion) ###DEBUG
+    #print('transformed_translation', transformed_translation) ###DEBUG
+    #print('after transformed_transform_matrix', transformed_transform_matrix) ###DEBUG
+    #print('stop') ###DEBUG
 
     return transformed_transform_matrix
