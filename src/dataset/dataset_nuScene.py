@@ -26,6 +26,7 @@ from .types import Stage
 from .view_sampler import ViewSampler, ViewSamplerCfg
 
 from .nuscene_reader import desired_sensor_names, CameraInfo, frame_seq_transform, CAM2RADARS, STATIONARY_CATEGORIES
+from ..misc.general_utils import img_path_to_Torch, depth_path_to_Torch
 
 from nuscenes.nuscenes import NuScenes
 from nuscenes.can_bus.can_bus_api import NuScenesCanBus
@@ -177,7 +178,7 @@ class Dataset_NUSCENE(Dataset):
         else: raise KeyError("Wrong bound type is passed to retrieve")
         return repeat(value, "-> v", v=num_views)
     
-    def adjust_intrinsics(self, features, intrinsics, final_res):
+    def adjust_intrinsics(self, features, intrinsics, final_res): ## could possibly be removed
         # # #
         _, _, h, w = features.shape
         assert h == w # # # we used to work with square images
@@ -203,13 +204,9 @@ class Dataset_NUSCENE(Dataset):
             ego_pose_rotation = Quaternion(ego_pose_information["rotation"])
             ego_pose_translation = np.array(ego_pose_information["translation"])
 
-            #print(f"  ego_pose_rotation: {ego_pose_rotation}")
-            #print(f"  ego_pose_translation: {ego_pose_translation}")
-
             # # # # # # # # # # # # # # # # # #
             ego_transform_matrix = transform_matrix(ego_pose_translation, ego_pose_rotation)
 
-            #print(f"  ego_transform_matrix: {ego_transform_matrix}")
             # # # # # # # # # # # # # # # # # #
             # # retrieving sensor placement w.r.t ego vehicle
             sensor_pose_information = self.nusc.get(table_name="calibrated_sensor", 
@@ -221,13 +218,6 @@ class Dataset_NUSCENE(Dataset):
             sensor_transform_matrix = transform_matrix(sensor_pose_translation, sensor_pose_rotation)       
             #sensor_transform_matrix = ego_transform_matrix @ sensor_transform_matrix
 
-            #print("="*50,'before getting data from nuscene_reader.py') 
-            #print('sensor_pose_translation', sensor_pose_translation) ###DEBUG: 
-            #print('sensor_pose_rotation', sensor_pose_rotation) ###DEBUG: 
-            #print('intrinsic', sensor_intrinsic_matrix) ###DEBUG: 
-            #print('extrinsic', sensor_transform_matrix) ###DEBUG: 
-            #print('ego_T', ego_pose_translation) ###DEBUG: 
-
             # # # # # # # # # # # # # # # # # #       
             sensor_file_path = NUSCENE_DATA_DIR + sensor_data["filename"]
             sensor_information = CameraInfo(intrinsic=sensor_intrinsic_matrix, extrinsic=sensor_transform_matrix, 
@@ -235,13 +225,7 @@ class Dataset_NUSCENE(Dataset):
                                             height=sensor_data["height"], name=sensor_data["channel"], 
                                             ego_T=ego_pose_translation)
             frame_information.append(sensor_information)
-            #print('width, height', sensor_data["width"], sensor_data["height"]) ###DEBUG: values correct until here
             
-            #print("="*50,'after getting data from nuscene_reader.py')
-            #print('sensor_information', sensor_information) ###DEBUG:               values not correct anymore
-            #print("="*50)
-
-
         ####################################################################
         self.all_frame_information[frame_token] = {"frame_info": frame_information, 
                                                    "lidar_token": frame_LIDAR_token}
@@ -282,6 +266,27 @@ class Dataset_NUSCENE(Dataset):
         target_extrinsics = extrinsics[target_frame][index_target]
         target_intrinsics = intrinsics[target_frame][index_target]
         target_images, target_intrinsics = self.adjust_intrinsics(target_images, target_intrinsics, self.target_resolution)
+        
+        #print('target_images shape:', target_images.shape)         #target_images shape: torch.Size([6, 3, 256, 256])
+        #print('target_intrinsics shape:', target_intrinsics.shape) #target_intrinsics shape: torch.Size([6, 3, 3])
+        #print('target_extrinsics shape:', target_extrinsics.shape) #target_extrinsics shape: torch.Size([6, 4, 4])
+
+        ### copied from seed4d
+
+        '''# Reading images 
+        target_images = [img_path_to_Torch(image_path, self.target_resolution)
+                         for image_path in np.array(self.all_texture_target[example_id])[index_target.numpy()]]
+        target_images = torch.stack(target_images).float()
+
+        # Reading depth maps
+        target_depths = [depth_path_to_Torch(image_path[:image_path.rfind('_')] + "_depth.png", self.target_resolution)
+                         for image_path in np.array(self.all_texture_target[example_id])[index_target.numpy()]]
+        target_depths = torch.stack(target_depths).float()
+        
+        # Reading Camera params
+        target_extrinsics = self.extrinsics_target[example_id][index_target.numpy()]
+        target_intrinsics = self.intrinsics_target[example_id][index_target.numpy()]'''
+
         #######################################################################
         #######################################################################
         example = {
@@ -466,19 +471,5 @@ def transform_matrix(translation: np.ndarray = np.array([0, 0, 0]),
     transformed_transform_matrix = quaternion_to_transform_matrix(
         transformed_quaternion, transformed_translation
     )
-
-    # Apply sign inversion to match format of seed4d dataloader
-    #transformed_transform_matrix[0,1] *= -1
-    #transformed_transform_matrix[0,2] *= -1
-    #transformed_transform_matrix[1,1] *= -1
-    #transformed_transform_matrix[1,2] *= -1
-    #transformed_transform_matrix[2,1] *= -1
-    #transformed_transform_matrix[2,2] *= -1
-
-    #print('start') ###DEBUG
-    #print('transformed_quaternion', transformed_quaternion) ###DEBUG
-    #print('transformed_translation', transformed_translation) ###DEBUG
-    #print('after transformed_transform_matrix', transformed_transform_matrix) ###DEBUG
-    #print('stop') ###DEBUG
 
     return transformed_transform_matrix
