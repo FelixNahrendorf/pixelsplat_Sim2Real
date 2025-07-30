@@ -27,6 +27,7 @@ from .view_sampler import ViewSampler, ViewSamplerCfg
 
 from .nuscene_reader import desired_sensor_names, CameraInfo, frame_seq_transform, CAM2RADARS, STATIONARY_CATEGORIES
 from ..misc.general_utils import img_path_to_Torch, depth_path_to_Torch
+from .dataset_readers import readPixelSplatCamera
 
 from nuscenes.nuscenes import NuScenes
 from nuscenes.can_bus.can_bus_api import NuScenesCanBus
@@ -37,6 +38,12 @@ from pyquaternion.quaternion import Quaternion
 
 NUSCENE_DATA_DIR = "/app/datasets/nuscenes_full/" 
 assert NUSCENE_DATA_DIR is not None, "Update the location of the NUSCENE Dataset"
+
+SEED4D_DATASET_ROOT = '/app/data/seed4d/static/' 
+assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
+
+SEED4D_DATASET_ROOT_10_SCENES = '/app/code/seed4d/data_analysis/data_sensititvity_analysis_baseline_nuscene_adjusted/static/'  
+assert SEED4D_DATASET_ROOT_10_SCENES is not None, "Update the location of the SEED4D Dataset"
     
 @dataclass
 class Dataset_NUSCENECfg(DatasetCfgCommon):
@@ -95,12 +102,38 @@ class Dataset_NUSCENE(Dataset):
         else: raise NotImplementedError
         #######################################################
         # print("\n\n", self.stage, self.usable_splits, "\n\n")
+        
+        data_dir_naming = '/ClearNoon/vehicle.audi.tt/'
+        
+        # Use configuration values or default fallback
+        training_towns = ['02'] #self.cfg.training_towns if self.cfg.training_towns is not None else ['02']
+        testing_towns = ['02'] #self.cfg.testing_towns if self.cfg.testing_towns is not None else ['02']
+        
         if (self.stage == 'train'):
             self.scene_names = self.usable_splits["train"]
+            ### copied from seed4d dataset
+            self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns] #data/seed4d/static/Town02/ClearNoon
+            self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
+            self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
+            random.shuffle(self.spawn_dirs) 
+            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_train.json' for spawn_dir in self.spawn_dirs]
         elif (self.stage == 'val'): # val stands for validation
             self.scene_names = self.usable_splits["val"]
+            ### copied from seed4d dataset
+            self.parent_dirs = [SEED4D_DATASET_ROOT_10_SCENES + 'Town' + town + data_dir_naming for town in training_towns]
+            self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
+            self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
+            random.shuffle(self.spawn_dirs) 
+            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
         elif (self.stage == 'test'): # val stands for validation
             self.scene_names = self.usable_splits["test"]
+            ### copied from seed4d dataset
+            self.parent_dirs = [SEED4D_DATASET_ROOT_10_SCENES + 'Town' + town + data_dir_naming for town in testing_towns]
+            self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
+            self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
+            random.shuffle(self.spawn_dirs) 
+            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+        
         else: raise ValueError("Trying to call dataset class for other purposes is not allowed")
         #######################################################
         # # # Here we obtain a list of all scenes for stage (train/val/test)
@@ -152,6 +185,8 @@ class Dataset_NUSCENE(Dataset):
         # # # self.frame_seq_size frame tokens --> middle token
         # # # will act as a reference token s.t. we will sample
         # # # reference frames from that middle frame token
+
+        self.output_spawns = np.array(self.output_images)
         #######################################################
         self.context_resolution = (self.view_sampler.cfg.input_context_resolution, self.view_sampler.cfg.input_context_resolution)
         self.target_resolution = (self.view_sampler.cfg.output_target_resolution, self.view_sampler.cfg.output_target_resolution)
@@ -161,6 +196,7 @@ class Dataset_NUSCENE(Dataset):
         #######################################################################
         # Here we are loading all the data into RAM 
         _ = [self.load_example(frame_token) for frame_token in self.all_frame_tokens]
+        _ = [self.load_example_id(idx) for idx in range(0, len(self.output_spawns))]
         
         print(f"nuScene Dataset, initialized for {self.stage} stage, will use # {len(self.all_frame_sequences)} spawns with augmentation = {self.augment_flag}")
     
@@ -177,6 +213,45 @@ class Dataset_NUSCENE(Dataset):
         elif bound=='fov': value = torch.tensor(self.cfg.max_fov, dtype=torch.float32) 
         else: raise KeyError("Wrong bound type is passed to retrieve")
         return repeat(value, "-> v", v=num_views)
+
+    ### copied from seed4d
+    def get_example_id(self, index):
+        intrin_path = self.output_spawns[index]
+        example_id = intrin_path[:find_nth_reverse(intrin_path, '/', 3)]
+        return example_id
+
+    ### copied from seed4d
+    def load_example_id(self, index):
+        
+        example_id = self.get_example_id(index)
+        
+        output_transforms = self.output_spawns[index]
+        
+        if not hasattr(self, "all_texture_target"):
+            
+            self.all_texture_target = {}
+            self.intrinsics_target = {}
+            self.extrinsics_target = {}
+            
+        if example_id not in self.all_texture_target.keys():
+            
+            self.all_texture_target[example_id] = []
+            self.intrinsics_target[example_id] = []
+            self.extrinsics_target[example_id] = []
+            #
+            # # obtaining intrinsics & extrinsics for context & target & render cameras ###maybe resolution=self.view_sampler.cfg.output_target_resolution need to be modified
+            target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
+                                                                                                              near=self.cfg.z_near, far=self.cfg.z_far)
+            
+            
+            # Adding ALL target camera views (no filtering applied)
+            for image_path, intrins, extrins in zip(target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices):
+                self.all_texture_target[example_id].append(image_path)
+                self.intrinsics_target[example_id].append(intrins)
+                self.extrinsics_target[example_id].append(extrins)
+            # stacking intrinsics and extrinsics individually for convenience
+            self.intrinsics_target[example_id] = torch.stack(self.intrinsics_target[example_id]).cpu()
+            self.extrinsics_target[example_id] = torch.stack(self.extrinsics_target[example_id]).cpu()
     
     def adjust_intrinsics(self, features, intrinsics, final_res): ## could possibly be removed
         # # #
@@ -246,7 +321,19 @@ class Dataset_NUSCENE(Dataset):
                                 near=self.cfg.z_near, far=self.cfg.z_far, nuscene_lidar_point_num=self.cfg.nuscene_lidar_point_num)                                                                                                                                                                                                                 
         return sequence_token_que, points, features, extrinsics, intrinsics
     
+    
+    
+
+
+
+
     def __getitem__(self, index):
+        example_id = self.get_example_id(index)
+
+        ###maybe necessary to add in a modified way:
+        '''index_context, index_target = self.view_sampler.sample("SEED", self.extrinsics_context[example_id], 
+                                                               self.extrinsics_target[example_id])'''
+        ###
         sample_sequence = self.all_frame_sequences[index]
         sample_sequence, points, features, extrinsics, intrinsics = self.get_frame_seq(sample_sequence)
         index_context, index_target, reference_frame, target_frame = self.view_sampler.sample(extrinsics, stage=self.stage)
@@ -262,10 +349,10 @@ class Dataset_NUSCENE(Dataset):
 
         #######################################################################
         ################ Loading Inference Target Information #################
-        target_images = features[target_frame][index_target]
+        '''target_images = features[target_frame][index_target]
         target_extrinsics = extrinsics[target_frame][index_target]
         target_intrinsics = intrinsics[target_frame][index_target]
-        target_images, target_intrinsics = self.adjust_intrinsics(target_images, target_intrinsics, self.target_resolution)
+        target_images, target_intrinsics = self.adjust_intrinsics(target_images, target_intrinsics, self.target_resolution)'''
         
         #print('target_images shape:', target_images.shape)         #target_images shape: torch.Size([6, 3, 256, 256])
         #print('target_intrinsics shape:', target_intrinsics.shape) #target_intrinsics shape: torch.Size([6, 3, 3])
@@ -273,7 +360,7 @@ class Dataset_NUSCENE(Dataset):
 
         ### copied from seed4d
 
-        '''# Reading images 
+        # Reading images 
         target_images = [img_path_to_Torch(image_path, self.target_resolution)
                          for image_path in np.array(self.all_texture_target[example_id])[index_target.numpy()]]
         target_images = torch.stack(target_images).float()
@@ -285,7 +372,7 @@ class Dataset_NUSCENE(Dataset):
         
         # Reading Camera params
         target_extrinsics = self.extrinsics_target[example_id][index_target.numpy()]
-        target_intrinsics = self.intrinsics_target[example_id][index_target.numpy()]'''
+        target_intrinsics = self.intrinsics_target[example_id][index_target.numpy()]
 
         #######################################################################
         #######################################################################
@@ -303,7 +390,7 @@ class Dataset_NUSCENE(Dataset):
                         "extrinsics": target_extrinsics,
                         "intrinsics": target_intrinsics,
                         "image": target_images,
-                        "depth": rearrange(torch.zeros(len(index_target), self.target_resolution[0], self.target_resolution[1]), "v h w -> v 1 h w"), # rearrange(target_depths, "v h w -> v 1 h w"),
+                        "depth": rearrange(target_depths, "v h w -> v 1 h w"),
                         "near": self.get_bound("z_near", len(index_target)),
                         "far": self.get_bound("z_far", len(index_target)),
                         "fov": self.get_bound("fov", len(index_target)),
@@ -376,6 +463,21 @@ def batch_collate_func(batch):
                         "index": torch.stack([batch_elem["render"]["index"] for batch_elem in batch])}}
     #print ('batch_example', batch_example) ###DEBUG
     return batch_example
+
+################################################################################################
+##################### Extra functions for processing files and directories #####################
+
+def str_list_concat(pre_string, folders_dir, post_string):
+    list_dirs = os.listdir(folders_dir)
+    return [pre_string + directory + '/' + post_string for directory in list_dirs]
+
+# copied from https://stackoverflow.com/questions/1883980/find-the-nth-occurrence-of-substring-in-a-string
+def find_nth_reverse(haystack: str, needle: str, n: int) -> int:
+    end = haystack.rfind(needle)
+    while end >= 0 and n > 1:
+        end = haystack.rfind(needle, 0, end - len(needle))
+        n -= 1
+    return end
 
 ###################################################################### start of working transformation matrix
 # from --> nuscenes-devkit/python-sdk/nuscenes/utils/geometry_utils.py
