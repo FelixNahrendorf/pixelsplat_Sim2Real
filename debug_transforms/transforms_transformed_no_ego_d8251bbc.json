@@ -1,0 +1,243 @@
+{
+    "camera_model": "OPENCV",
+    "k1": 0,
+    "k2": 0,
+    "p1": 0,
+    "p2": 0,
+    "frames": [
+        {
+            "file_path": "../sensors/0_rgb.png",
+            "depth_file_path": "../sensors/0_depth.png",
+            "semantic_segmentation_file_path": "../sensors/0_semantic_segmentation.png",
+            "instance_segmentation_file_path": "../sensors/0_instance_segmentation.png",
+            "transform_matrix": [
+                [
+                    -0.000805071337676001,
+                    -0.9999837634756291,
+                    -0.00564133364193921,
+                    -1.51095763913
+                ],
+                [
+                    0.005684778682714943,
+                    0.005636667733597851,
+                    -0.9999679551206585,
+                    1.70079118954
+                ],
+                [
+                    0.9999835174398982,
+                    -0.0008371152724918877,
+                    0.005680148462035013,
+                    -0.0159456324149
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            ],
+            "fl_x": 1266.417203046554,
+            "fl_y": 1266.417203046554,
+            "cx": 816.2670197447984,
+            "cy": 491.50706579294757,
+            "w": 1600,
+            "h": 900,
+            "camera_name": "CAM_FRONT"
+        },
+        {
+            "file_path": "../sensors/1_rgb.png",
+            "depth_file_path": "../sensors/1_depth.png",
+            "semantic_segmentation_file_path": "../sensors/1_semantic_segmentation.png",
+            "instance_segmentation_file_path": "../sensors/1_instance_segmentation.png",
+            "transform_matrix": [
+                [
+                    0.009055409840580909,
+                    -0.9998658581501865,
+                    -0.013647903070082817,
+                    -1.49574800619
+                ],
+                [
+                    -0.8329295630238641,
+                    9.946037678965414e-06,
+                    -0.5533790228604181,
+                    1.5508477543
+                ],
+                [
+                    0.5533049273172016,
+                    0.016378815789537426,
+                    -0.8328177422460682,
+                    0.493404796419
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            ],
+            "fl_x": 1260.8474446004698,
+            "fl_y": 1260.8474446004698,
+            "cx": 807.968244525554,
+            "cy": 495.3344268742088,
+            "w": 1600,
+            "h": 900,
+            "camera_name": "CAM_FRONT_RIGHT"
+        },
+        {
+            "file_path": "../sensors/2_rgb.png",
+            "depth_file_path": "../sensors/2_depth.png",
+            "semantic_segmentation_file_path": "../sensors/2_semantic_segmentation.png",
+            "instance_segmentation_file_path": "../sensors/2_instance_segmentation.png",
+            "transform_matrix": [
+                [
+                    0.010805031705695004,
+                    -0.9998093166224763,
+                    -0.016265967070410337,
+                    -1.56239545128
+                ],
+                [
+                    -0.9347755391782978,
+                    -0.015875837955449883,
+                    0.3548839938953782,
+                    1.0148780988
+                ],
+                [
+                    -0.3550745592741917,
+                    0.01137049533261605,
+                    -0.9347688319537238,
+                    0.480568219723
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            ],
+            "fl_x": 1259.5137405846733,
+            "fl_y": 1259.5137405846733,
+            "cx": 807.2529053838625,
+            "cy": 501.19579884916527,
+            "w": 1600,
+            "h": 900,
+            "camera_name": "CAM_BACK_RIGHT"
+        },
+        {
+            "file_path": "../sensors/3_rgb.png",
+            "depth_file_path": "../sensors/3_depth.png",
+            "semantic_segmentation_file_path": "../sensors/3_semantic_segmentation.png",
+            "instance_segmentation_file_path": "../sensors/3_instance_segmentation.png",
+            "transform_matrix": [
+                [
+                    0.004000229136375426,
+                    -0.9998518100562374,
+                    0.01674383749691433,
+                    -1.57910346144
+                ],
+                [
+                    0.002421709860318746,
+                    0.016753608478469684,
+                    0.9998567156969558,
+                    0.0283260309358
+                ],
+                [
+                    -0.9999890666843361,
+                    -0.003959107249965785,
+                    0.0024883692600457413,
+                    -0.00345136761476
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            ],
+            "fl_x": 809.2209905677063,
+            "fl_y": 809.2209905677063,
+            "cx": 829.2196003259838,
+            "cy": 481.77842384512485,
+            "w": 1600,
+            "h": 900,
+            "camera_name": "CAM_BACK"
+        },
+        {
+            "file_path": "../sensors/4_rgb.png",
+            "depth_file_path": "../sensors/4_depth.png",
+            "semantic_segmentation_file_path": "../sensors/4_semantic_segmentation.png",
+            "instance_segmentation_file_path": "../sensors/4_instance_segmentation.png",
+            "transform_matrix": [
+                [
+                    -0.0037556387837153517,
+                    -0.9998647750135775,
+                    -0.01601021125328619,
+                    -1.59097014818
+                ],
+                [
+                    0.9477603556843316,
+                    -0.00866572154793105,
+                    0.3188655099931058,
+                    1.03569100218
+                ],
+                [
+                    -0.31896113144149085,
+                    -0.013976299835876506,
+                    0.9476647401230365,
+                    -0.484795032713
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            ],
+            "fl_x": 1256.7414812095406,
+            "fl_y": 1256.7414812095406,
+            "cx": 792.1125740759628,
+            "cy": 492.7757465151356,
+            "w": 1600,
+            "h": 900,
+            "camera_name": "CAM_BACK_LEFT"
+        },
+        {
+            "file_path": "../sensors/5_rgb.png",
+            "depth_file_path": "../sensors/5_depth.png",
+            "semantic_segmentation_file_path": "../sensors/5_semantic_segmentation.png",
+            "instance_segmentation_file_path": "../sensors/5_instance_segmentation.png",
+            "transform_matrix": [
+                [
+                    0.0021194580827184383,
+                    -0.99999475910068,
+                    0.0024473799476103027,
+                    -1.50932822144
+                ],
+                [
+                    0.8207583481515546,
+                    0.00034143667149920956,
+                    -0.5712754303840929,
+                    1.52387798135
+                ],
+                [
+                    0.5712716007618152,
+                    0.0032195018514858515,
+                    0.8207547703003992,
+                    -0.494631336551
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            ],
+            "fl_x": 1272.5979470598488,
+            "fl_y": 1272.5979470598488,
+            "cx": 826.6154927353808,
+            "cy": 479.75165386361925,
+            "w": 1600,
+            "h": 900,
+            "camera_name": "CAM_FRONT_LEFT"
+        }
+    ]
+}

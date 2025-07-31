@@ -1,8 +1,3 @@
-'''
-This script is used for loading the NuScenes dataset with one fixed transform file that contains camera data.
-It processes the dataset to extract camera images from Nuscenes but intrinsics, and extrinsics from the one hardcoded transform file
-'''
-
 import os
 import json
 import random
@@ -41,11 +36,8 @@ NUSCENE_DATA_DIR = "/app/datasets/nuscenes_full/"
 assert NUSCENE_DATA_DIR is not None, "Update the location of the NUSCENE Dataset"
 
 # Fixed SEED4D transform paths of mean Nuscene extrinsics/intrinsics in SEED4D format
-#SEED4D_CONTEXT_TRANSFORM = '/app/code/seed4d/data_analysis/data_seed4d/Town01/ClearNoon/vehicle.audi.tt/spawn_point_1/step_0/ego_vehicle/nuscenes_invisible/transforms/transforms_ego.json'
-SEED4D_TARGET_TRANSFORM = '/app/code/seed4d/data_analysis/data_seed4d/Town01/ClearNoon/vehicle.audi.tt/spawn_point_1/step_0/ego_vehicle/sphere_invisible/transforms/transforms_ego.json'
-
-#SEED4D_CONTEXT_TRANSFORM = '/app/code/Sim2Real/utils/output_coordinate_transformation/transforms_transformed.json' #works
-SEED4D_CONTEXT_TRANSFORM = '/app/code/pixelsplat_Sim2Real/debug_transforms/transforms_transformed_no_ego_test.json'
+SEED4D_CONTEXT_TRANSFORM = '/app/code/seed4d/data/Town01/ClearNoon/vehicle.audi.tt/spawn_point_1/step_0/ego_vehicle/nuscenes_invisible/transforms/transforms_ego.json'
+SEED4D_TARGET_TRANSFORM = '/app/code/seed4d/data/Town01/ClearNoon/vehicle.audi.tt/spawn_point_1/step_0/ego_vehicle/sphere_invisible/transforms/transforms_ego.json'
 
 @dataclass
 class Dataset_NUSCENE_EGO_EXOCfg(DatasetCfgCommon):
@@ -283,97 +275,6 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
             print(f"  WARNING: Large distance between coordinate systems!")
         
         print("=" * 60)
-
-    def debug_output_structure(self, example, index):
-        """
-        Debug function to print detailed information about the output structure
-        """
-        print(f"\n" + "="*80)
-        print(f"DEBUG OUTPUT STRUCTURE - Sample Index: {index}")
-        print(f"Example ID: {self.get_example_id(index)}")
-        print(f"="*80)
-        
-        # Scene information
-        print(f"SCENE: {example['scene']}")
-        
-        # Context debug
-        context = example["context"]
-        print(f"\nCONTEXT DATA:")
-        print(f"  Image shape: {context['image'].shape}")
-        print(f"  Image dtype: {context['image'].dtype}")
-        print(f"  Image min/max: [{context['image'].min():.3f}, {context['image'].max():.3f}]")
-        print(f"  Extrinsics shape: {context['extrinsics'].shape}")
-        print(f"  Extrinsics dtype: {context['extrinsics'].dtype}")
-        print(f"  Intrinsics shape: {context['intrinsics'].shape}")
-        print(f"  Intrinsics dtype: {context['intrinsics'].dtype}")
-        print(f"  Near bounds shape: {context['near'].shape}")
-        print(f"  Far bounds shape: {context['far'].shape}")
-        print(f"  FOV bounds shape: {context['fov'].shape}")
-        print(f"  Indices: {context['index']}")
-        
-        # Print sample extrinsics matrices
-        print(f"  Sample extrinsics (first camera):")
-        print(f"    Translation: {context['extrinsics'][0][:3, 3].numpy()}")
-        print(f"    Rotation (first row): {context['extrinsics'][0][:3, 0].numpy()}")
-        
-        # Print sample intrinsics
-        print(f"  Sample intrinsics (first camera):")
-        print(f"    Focal lengths: fx={context['intrinsics'][0][0,0]:.1f}, fy={context['intrinsics'][0][1,1]:.1f}")
-        print(f"    Principal point: cx={context['intrinsics'][0][0,2]:.1f}, cy={context['intrinsics'][0][1,2]:.1f}")
-        
-        # Target debug  
-        target = example["target"]
-        print(f"\nTARGET DATA:")
-        print(f"  Image shape: {target['image'].shape}")
-        print(f"  Image dtype: {target['image'].dtype}")
-        print(f"  Image min/max: [{target['image'].min():.3f}, {target['image'].max():.3f}]")
-        print(f"  Depth shape: {target['depth'].shape}")
-        print(f"  Depth dtype: {target['depth'].dtype}")
-        print(f"  Depth min/max: [{target['depth'].min():.3f}, {target['depth'].max():.3f}]")
-        print(f"  Extrinsics shape: {target['extrinsics'].shape}")
-        print(f"  Extrinsics dtype: {target['extrinsics'].dtype}")
-        print(f"  Intrinsics shape: {target['intrinsics'].shape}")
-        print(f"  Intrinsics dtype: {target['intrinsics'].dtype}")
-        print(f"  Near bounds shape: {target['near'].shape}")
-        print(f"  Far bounds shape: {target['far'].shape}")
-        print(f"  FOV bounds shape: {target['fov'].shape}")
-        print(f"  Indices: {target['index']}")
-        
-        # Print sample target extrinsics matrices
-        print(f"  Sample extrinsics (first camera):")
-        print(f"    Translation: {target['extrinsics'][0][:3, 3].numpy()}")
-        print(f"    Rotation (first row): {target['extrinsics'][0][:3, 0].numpy()}")
-        
-        # Print sample target intrinsics
-        print(f"  Sample intrinsics (first camera):")
-        print(f"    Focal lengths: fx={target['intrinsics'][0][0,0]:.1f}, fy={target['intrinsics'][0][1,1]:.1f}")
-        print(f"    Principal point: cx={target['intrinsics'][0][0,2]:.1f}, cy={target['intrinsics'][0][1,2]:.1f}")
-        
-        # Data source summary
-        print(f"\nDATA SOURCES:")
-        print(f"  Context: NuScenes RGB images with HARDCODED SEED4D coordinates")
-        print(f"  Context transform file: {self.selected_input_transform}")
-        print(f"  Target: SEED4D synthetic spherical cameras")
-        print(f"  Target transform file: {self.selected_output_transform}")
-        
-        # Bounds and sampling info
-        print(f"\nBOUNDS & SAMPLING:")
-        print(f"  Z-near: {context['near'][0]:.2f}")
-        print(f"  Z-far: {context['far'][0]:.2f}")
-        print(f"  FOV: {context['fov'][0]:.2f}")
-        print(f"  Context resolution: {self.context_resolution}")
-        print(f"  Target resolution: {self.target_resolution}")
-        print(f"  Stage: {self.stage}")
-        print(f"  Augmentation: {self.augment_flag}")
-        
-        # Coordinate system info
-        print(f"\nCOORDINATE SYSTEM INFO:")
-        print(f"  Method: HARDCODED transform files (no dynamic transformation)")
-        print(f"  Context coordinates: Fixed SEED4D format from transform file")
-        print(f"  Target coordinates: Fixed SEED4D format from transform file")
-        print(f"  NuScenes role: Image provider only (coordinates ignored)")
-        
-        print(f"="*80)
     
     def __len__(self):
         return len(self.samples)
@@ -416,7 +317,7 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
             self.intrinsics_target[example_id] = []
             self.extrinsics_context[example_id] = []
             self.extrinsics_target[example_id] = []
-### DEBUG: until here everything should be okay ###          
+            
             # LOAD SEED4D CAMERA COORDINATES (for context cameras)
             if self.selected_input_transform and os.path.exists(self.selected_input_transform):
                 print(f"Loading SEED4D context coordinates from: {self.selected_input_transform}")
@@ -428,6 +329,27 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
                 # Convert to tensor if needed
                 if isinstance(seed4d_context_extrinsics, list):
                     seed4d_context_extrinsics = torch.stack(seed4d_context_extrinsics)
+                
+                # MODIFY CAMERAS Y-AXIS - Choose one of these options:
+                
+                # Option 1: Dictionary format (only modify specific cameras)
+                #seed4d_context_extrinsics = self._modify_cameras_y_axis(
+                #    seed4d_context_extrinsics, 
+                #    {3: 0.0}  # Only modify camera 3 (backwards compatibility)
+                #)
+                
+                # Option 2: List format (specify offset for each camera index)
+                seed4d_context_extrinsics = self._modify_cameras_y_axis(
+                    seed4d_context_extrinsics, 
+                    #[-0.811, -0.667, -0.651, 0.856, 0.142, 0.139]  
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] 
+                )
+                
+                # Option 3: Multiple specific cameras with different offsets
+                # seed4d_context_extrinsics = self._modify_cameras_y_axis(
+                #     seed4d_context_extrinsics, 
+                #     {0: 1.0, 2: -0.5, 4: 2.0}  # Camera 0: +1.0, Camera 2: -0.5, Camera 4: +2.0
+                # )
                 
                 # Filter to first 6 sensors to match 6 NuScenes cameras (indices 0-5)
                 valid_sensor_indices = list(range(6))  # Always use 0, 1, 2, 3, 4, 5
@@ -489,7 +411,7 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
             
             print(f"   Context extrinsics shape: {self.extrinsics_context[example_id].shape}")
             print(f"   Context: {len(self.all_texture_context[example_id])} NuScenes images with SEED4D coordinates")
-### DEBUG: from here everything should be okay ###        
+            
             # LOAD SEED4D TARGET CAMERAS (spherical views)
             if self.selected_output_transform and os.path.exists(self.selected_output_transform):
                 print(f"Loading SEED4D target coordinates from: {self.selected_output_transform}")
@@ -653,10 +575,6 @@ class Dataset_NUSCENE_EGO_EXO(Dataset):
             },
             "scene": "nuScene"
         }
-        
-        # ADD DEBUG OUTPUT STRUCTURE
-        self.debug_output_structure(example, index)
-        
         return example
 
 ################################################################################################
