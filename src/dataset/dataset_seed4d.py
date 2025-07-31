@@ -33,7 +33,8 @@ from ..misc.general_utils import img_path_to_Torch, depth_path_to_Torch
 SEED4D_DATASET_ROOT = '/app/data/seed4d/static/' 
 assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
 
-SEED4D_DATASET_ROOT_10_SCENES = '/app/code/seed4d/data_sensititvity_analysis_baseline_nuscene_adjusted/static/'  
+SEED4D_DATASET_ROOT_10_SCENES = '/app/code/seed4d/data_analysis/data_sensititvity_analysis_baseline_nuscene_adjusted/static/'  
+
 assert SEED4D_DATASET_ROOT_10_SCENES is not None, "Update the location of the SEED4D Dataset"
 
 LIDAR_DATASET_ROOT = '/app/new/seed4d/pseudo_lidar/' # Will be directory to save pseudo lidar 
@@ -294,6 +295,18 @@ class Dataset_SEED4D(Dataset):
                         "index": index_target,
                     },
                     "scene": "Carla"}
+
+
+        print("=== FINAL DATA FED TO MODEL ===")
+        print("Context intrinsics shape:", example['context']['intrinsics'].shape)
+        print("Context intrinsics:\n", example['context']['intrinsics'])
+        print("Context extrinsics shape:", example['context']['extrinsics'].shape)
+        print("Context extrinsics:\n", example['context']['extrinsics'])
+        print("Target intrinsics shape:", example['target']['intrinsics'].shape) 
+        print("Target intrinsics:\n", example['target']['intrinsics'])
+        print("Target extrinsics shape:", example['target']['extrinsics'].shape)
+        print("Target extrinsics:\n", example['target']['extrinsics'])
+        print("="*50)            
         return example
         
 ################################################################################################
