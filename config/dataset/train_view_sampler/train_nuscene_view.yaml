@@ -1,6 +1,6 @@
 name: train_nuscene_view
 
-num_target_views: 1
+num_target_views: 2 # ego-exo, for ego-ego the value is: 1
 num_context_views: 6
 augment: false
 augment_p: 0.5
