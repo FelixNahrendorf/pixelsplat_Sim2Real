@@ -194,6 +194,8 @@ class Dataset_NUSCENE(Dataset):
         # Below is the important flag changing workflow of several blocks
         self.augment_flag = self.stage == 'train' and self.cfg.train_view_sampler.augment
         #######################################################################
+        # Clear any existing cached data to ensure camera order changes take effect
+        self.all_frame_information.clear() ##DEBUG
         # Here we are loading all the data into RAM 
         _ = [self.load_example(frame_token) for frame_token in self.all_frame_tokens]
         _ = [self.load_example_id(idx) for idx in range(0, len(self.output_spawns))]
@@ -238,7 +240,10 @@ class Dataset_NUSCENE(Dataset):
             self.all_texture_target[example_id] = []
             self.intrinsics_target[example_id] = []
             self.extrinsics_target[example_id] = []
-            #
+
+            
+            #print('self.view_sampler.cfg.output_target_resolution', self.view_sampler.cfg.output_target_resolution) ###DEBUG #256
+
             # # obtaining intrinsics & extrinsics for context & target & render cameras ###maybe resolution=self.view_sampler.cfg.output_target_resolution need to be modified
             target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
                                                                                                               near=self.cfg.z_near, far=self.cfg.z_far)
@@ -253,7 +258,7 @@ class Dataset_NUSCENE(Dataset):
             self.intrinsics_target[example_id] = torch.stack(self.intrinsics_target[example_id]).cpu()
             self.extrinsics_target[example_id] = torch.stack(self.extrinsics_target[example_id]).cpu()
     
-    def adjust_intrinsics(self, features, intrinsics, final_res): ## could possibly be removed
+    '''def adjust_intrinsics(self, features, intrinsics, final_res): ## could possibly be removed
         # # #
         _, _, h, w = features.shape
         assert h == w # # # we used to work with square images
@@ -264,7 +269,7 @@ class Dataset_NUSCENE(Dataset):
         adjusted_intrinsics = intrinsics.clone()
         adjusted_intrinsics[:, 0, 0] *= resize_ratio_w
         adjusted_intrinsics[:, 1, 1] *= resize_ratio_h
-        return F.interpolate(features, final_res, mode="bilinear", align_corners=True), adjusted_intrinsics
+        return F.interpolate(features, final_res, mode="bilinear", align_corners=True), adjusted_intrinsics'''
         
     def load_example(self, frame_token):
         frame_information = []      # # # better to keep 'frame_information' in a list format
@@ -274,6 +279,8 @@ class Dataset_NUSCENE(Dataset):
         frame_LIDAR_token = sample_frame_info["LIDAR_TOP"]
         for sensor in desired_sensor_names:
             sensor_data = self.nusc.get("sample_data", sample_frame_info[sensor])
+#until here order is correct
+            #print('sample_frame_info[sensor]', sample_frame_info[sensor]) ###DEBUG
             # # retaining ego vehicle location w.r.t global coordinate system
             ego_pose_information = self.nusc.get(table_name="ego_pose", token=sensor_data["ego_pose_token"])
             ego_pose_rotation = Quaternion(ego_pose_information["rotation"])
@@ -300,7 +307,8 @@ class Dataset_NUSCENE(Dataset):
                                             height=sensor_data["height"], name=sensor_data["channel"], 
                                             ego_T=ego_pose_translation)
             frame_information.append(sensor_information)
-            
+            #print('sensor_information', sensor_information) ###DEBUG
+#until here order is correct            
         ####################################################################
         self.all_frame_information[frame_token] = {"frame_info": frame_information, 
                                                    "lidar_token": frame_LIDAR_token}
@@ -318,7 +326,7 @@ class Dataset_NUSCENE(Dataset):
                 sequence_frame_info.append(self.all_frame_information[frame_token])   
         points, features, extrinsics, intrinsics = \
             frame_seq_transform(sequence_frame_info, nuscene_loader=self.nusc, resolution=self.context_resolution[0], 
-                                near=self.cfg.z_near, far=self.cfg.z_far, nuscene_lidar_point_num=self.cfg.nuscene_lidar_point_num)                                                                                                                                                                                                                 
+                                near=self.cfg.z_near, far=self.cfg.z_far, nuscene_lidar_point_num=self.cfg.nuscene_lidar_point_num)                                                                                                                                                                                                                
         return sequence_token_que, points, features, extrinsics, intrinsics
     
     
@@ -329,15 +337,17 @@ class Dataset_NUSCENE(Dataset):
 
     def __getitem__(self, index):
         example_id = self.get_example_id(index)
-
         ###maybe necessary to add in a modified way:
         '''index_context, index_target = self.view_sampler.sample("SEED", self.extrinsics_context[example_id], 
                                                                self.extrinsics_target[example_id])'''
         ###
         sample_sequence = self.all_frame_sequences[index]
         sample_sequence, points, features, extrinsics, intrinsics = self.get_frame_seq(sample_sequence)
-        index_context, index_target, reference_frame, target_frame = self.view_sampler.sample(extrinsics, stage=self.stage)
-        
+
+        # Get the actual number of SEED4D target cameras available
+        num_seed4d_targets = len(self.all_texture_target[example_id])
+
+        index_context, index_target, reference_frame, target_frame = self.view_sampler.sample(extrinsics, stage=self.stage, available_target_views=num_seed4d_targets)
         seq, view, c, h, w = features.shape
         # # # sample_sequence should be kept in dataset
         self.all_frame_sequences[index] = sample_sequence
@@ -346,6 +356,19 @@ class Dataset_NUSCENE(Dataset):
         context_images = features[reference_frame][index_context]
         context_extrinsics = extrinsics[reference_frame][index_context]
         context_intrinsics = intrinsics[reference_frame][index_context]
+        #print('context_images shape:', context_images.shape)         #context_images shape: context_images shape: torch.Size([6, 3, 256, 256])
+        #print('context_intrinsics shape:', context_intrinsics.shape) #context_intrinsics shape: context_intrinsics shape: torch.Size([6, 3, 3])
+        #print('context_extrinsics shape:', context_extrinsics.shape) #context_extrinsics shape: context_extrinsics shape: torch.Size([6, 4, 4])
+        
+        
+    
+        # Apply reordering using advanced indexing
+        camera_reorder_mapping = [0, 1, 5, 3, 4, 2]
+        context_images = context_images[camera_reorder_mapping]
+        context_extrinsics = context_extrinsics[camera_reorder_mapping]
+        context_intrinsics = context_intrinsics[camera_reorder_mapping]
+        index_context = index_context[camera_reorder_mapping]
+
 
         #######################################################################
         ################ Loading Inference Target Information #################
@@ -400,6 +423,17 @@ class Dataset_NUSCENE(Dataset):
                     "point_cloud": points}
      
         print("=== FINAL DATA FED TO MODEL ===")
+        print('context_resolution:', self.context_resolution) ###DEBUG
+        print('context_resolution[0]:', self.context_resolution[0]) ###DEBUG
+        print(f"Resolution: {self.view_sampler.cfg.output_target_resolution}")
+        #print(f"Output transforms file: {output_transforms}")
+        print(f"Index target: {index_target.numpy()}")
+        print(f"Target intrinsics shape: {self.intrinsics_target[example_id].shape}")
+
+        print('index_context.numpy():', index_context.numpy())
+        print('index_context:', index_context)
+        print('context_images', context_images)
+
         print("Context intrinsics shape:", example['context']['intrinsics'].shape)
         print("Context intrinsics:\n", example['context']['intrinsics'])
         print("Context extrinsics shape:", example['context']['extrinsics'].shape)
@@ -573,5 +607,12 @@ def transform_matrix(translation: np.ndarray = np.array([0, 0, 0]),
     transformed_transform_matrix = quaternion_to_transform_matrix(
         transformed_quaternion, transformed_translation
     )
+
+    transformed_transform_matrix[0,1] *= -1  
+    transformed_transform_matrix[0,2] *= -1
+    transformed_transform_matrix[1,1] *= -1
+    transformed_transform_matrix[1,2] *= -1
+    transformed_transform_matrix[2,1] *= -1
+    transformed_transform_matrix[2,2] *= -1
 
     return transformed_transform_matrix
