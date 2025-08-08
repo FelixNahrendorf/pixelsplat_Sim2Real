@@ -35,6 +35,7 @@ class ViewSampler_NUSCENE(ViewSampler[ViewSampler_NUSCENECfg]):
     def sample(
         self,
         extrinsics: Float[Tensor, "seq view 4 4"], stage="test",
+        available_target_views: int = None,
         # # # extrinsics \in [self.frame_seq_size, v, 4, 4] with v=6 for nuScene dataset 
         device: torch.device = torch.device("cpu")) -> tuple[
         Int64[Tensor, " context_view"],  # indices for context views
@@ -50,13 +51,23 @@ class ViewSampler_NUSCENE(ViewSampler[ViewSampler_NUSCENECfg]):
         self.target_frame = self.cfg.nuscene_render_k      # # t k frame is the render
         #######################################################################
         self.reference_view_count = view
-        self.target_view_count = view 
+
+        if available_target_views is not None:
+            self.target_view_count = available_target_views
+        else:
+            self.target_view_count = view 
         #######################################################################
-        index_context = torch.arange(0, self.reference_view_count, dtype=torch.int64, device=device)
+        #index_context = torch.arange(0, self.reference_view_count, dtype=torch.int64, device=device)
+
+        camera_order_mapping = [0, 1, 5, 3, 4, 2]  # Maps new positions to old positions
+        index_context = torch.tensor(camera_order_mapping, dtype=torch.int64, device=device)
+
+        # Ensure we don't try to sample more views than available
+        max_target_views = min(self.cfg.num_target_views, self.target_view_count)
         index_target = torch.from_numpy(np.random.choice(np.arange(0, self.target_view_count), 
                                         size=self.cfg.num_target_views, replace=False)).to(dtype=torch.int64)
         if stage == "test":
-            index_target = torch.arange(0, self.num_target_views, dtype=torch.int64, device=device)
+            index_target = torch.arange(0, max_target_views, dtype=torch.int64, device=device)
         return index_context, index_target, self.reference_frame, self.target_frame
     
     @property
