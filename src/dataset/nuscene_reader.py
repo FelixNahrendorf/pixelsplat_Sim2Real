@@ -8,8 +8,10 @@ from pyquaternion import Quaternion
 import numpy as np
 
 # # # all cameras per frame will be read in the order below: 
-desired_sensor_names = ['CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_BACK_RIGHT', 
-                        'CAM_BACK', 'CAM_BACK_LEFT', 'CAM_FRONT_LEFT'] 
+#desired_sensor_names = ['CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_BACK_RIGHT', 
+#                        'CAM_BACK', 'CAM_BACK_LEFT', 'CAM_FRONT_LEFT'] 
+desired_sensor_names = ['CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_FRONT_LEFT','CAM_BACK',
+                        'CAM_BACK_LEFT', 'CAM_BACK_RIGHT'] 
 
 # a map to determine which radars to be projected onto each camera image plane
 CAM2RADARS = {
@@ -50,8 +52,8 @@ def frame_cameras_transform(frame_dictionary, nuscene_loader=None, resolution=16
         
         # intrinsics
         intrinsic_normal = np.zeros((3,3)) 
-        intrinsic_normal[0,0] = frame_info.intrinsic[0, 0] * (resolution / frame_info.width) #fl_x
-        intrinsic_normal[1,1] = frame_info.intrinsic[1, 1] * (resolution / frame_info.height) #fl_y
+        intrinsic_normal[0,0] = frame_info.intrinsic[0, 0] * (1 / frame_info.width) #fl_x
+        intrinsic_normal[1,1] = frame_info.intrinsic[1, 1] * (1 / frame_info.height) #fl_y
         intrinsic_normal[2,2] = 1
         intrinsic_normal[0,2] = frame_info.intrinsic[0, 2] / frame_info.width #cx
         intrinsic_normal[1,2] = frame_info.intrinsic[1, 2] / frame_info.height #cy
