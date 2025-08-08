@@ -298,6 +298,13 @@ class Dataset_SEED4D(Dataset):
 
 
         print("=== FINAL DATA FED TO MODEL ===")
+        print('context_resolution:', self.context_resolution) ###DEBUG
+        print('context_resolution[0]:', self.context_resolution[0]) ###DEBUG
+        print(f"Resolution: {self.view_sampler.cfg.output_target_resolution}")
+        #print(f"Output transforms file: {output_transforms}")
+        print(f"Index target: {index_target.numpy()}")
+        print(f"Target intrinsics shape: {self.intrinsics_target[example_id].shape}")
+
         print("Context intrinsics shape:", example['context']['intrinsics'].shape)
         print("Context intrinsics:\n", example['context']['intrinsics'])
         print("Context extrinsics shape:", example['context']['extrinsics'].shape)
@@ -306,7 +313,7 @@ class Dataset_SEED4D(Dataset):
         print("Target intrinsics:\n", example['target']['intrinsics'])
         print("Target extrinsics shape:", example['target']['extrinsics'].shape)
         print("Target extrinsics:\n", example['target']['extrinsics'])
-        print("="*50)            
+        print("="*50)         
         return example
         
 ################################################################################################
