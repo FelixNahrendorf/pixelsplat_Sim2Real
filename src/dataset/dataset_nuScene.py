@@ -360,14 +360,12 @@ class Dataset_NUSCENE(Dataset):
         #print('context_intrinsics shape:', context_intrinsics.shape) #context_intrinsics shape: context_intrinsics shape: torch.Size([6, 3, 3])
         #print('context_extrinsics shape:', context_extrinsics.shape) #context_extrinsics shape: context_extrinsics shape: torch.Size([6, 4, 4])
         
-        
-    
         # Apply reordering using advanced indexing
-        camera_reorder_mapping = [0, 1, 5, 3, 4, 2]
-        context_images = context_images[camera_reorder_mapping]
-        context_extrinsics = context_extrinsics[camera_reorder_mapping]
-        context_intrinsics = context_intrinsics[camera_reorder_mapping]
-        index_context = index_context[camera_reorder_mapping]
+        #camera_reorder_mapping = [0, 1, 5, 3, 4, 2]
+        #context_images = context_images[camera_reorder_mapping]
+        #context_extrinsics = context_extrinsics[camera_reorder_mapping]
+        #context_intrinsics = context_intrinsics[camera_reorder_mapping]
+        #index_context = index_context[camera_reorder_mapping]
 
 
         #######################################################################
@@ -512,36 +510,6 @@ def find_nth_reverse(haystack: str, needle: str, n: int) -> int:
         end = haystack.rfind(needle, 0, end - len(needle))
         n -= 1
     return end
-
-###################################################################### start of working transformation matrix
-# from --> nuscenes-devkit/python-sdk/nuscenes/utils/geometry_utils.py
-'''def transform_matrix(translation: np.ndarray = np.array([0, 0, 0]),
-                     rotation: Quaternion = Quaternion([1, 0, 0, 0]),
-                     inverse: bool = False) -> np.ndarray:
-    """
-    Convert pose to transformation matrix.
-    :param translation: <np.float32: 3>. Translation in x, y, z.
-    :param rotation: Rotation in quaternions (w ri rj rk).
-    :param inverse: Whether to compute inverse transform matrix.
-    :return: <np.float32: 4, 4>. Transformation matrix.
-    """
-    tm = np.eye(4)
-    if inverse:
-        rot_inv = rotation.rotation_matrix.T
-        trans = np.transpose(-np.array(translation))
-        tm[:3, :3] = rot_inv
-        tm[:3, 3] = rot_inv.dot(trans)
-    else:
-        tm[:3, :3] = rotation.rotation_matrix
-        tm[:3, 3] = np.transpose(np.array(translation))
-
-    print('start') ###DEBUG
-    print('rotation', rotation) ###DEBUG
-    print('translation', translation) ###DEBUG
-    print('tm', tm) ###DEBUG
-    print('stop') ###DEBUG
-    return tm'''
-###################################################################### end of working transformation matrix
 
 ### new implementation of transformation ###
 
