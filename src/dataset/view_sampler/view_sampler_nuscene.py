@@ -57,10 +57,10 @@ class ViewSampler_NUSCENE(ViewSampler[ViewSampler_NUSCENECfg]):
         else:
             self.target_view_count = view 
         #######################################################################
-        #index_context = torch.arange(0, self.reference_view_count, dtype=torch.int64, device=device)
+        index_context = torch.arange(0, self.reference_view_count, dtype=torch.int64, device=device)
 
-        camera_order_mapping = [0, 1, 5, 3, 4, 2]  # Maps new positions to old positions
-        index_context = torch.tensor(camera_order_mapping, dtype=torch.int64, device=device)
+        #camera_order_mapping = [0, 1, 5, 3, 4, 2]  # Maps new positions to old positions
+        #index_context = torch.tensor(camera_order_mapping, dtype=torch.int64, device=device)
 
         # Ensure we don't try to sample more views than available
         max_target_views = min(self.cfg.num_target_views, self.target_view_count)
