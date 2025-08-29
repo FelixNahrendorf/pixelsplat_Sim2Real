@@ -27,7 +27,7 @@ trainer:
 
 test:
   depth_mode: depth
-  output_path: /app/outputs/nuscene_on_nuscene_ckpt_0shot_td1_rend1_test # outputs/test/nuscene #time_df4
+  output_path: /app/outputs/nuscene_on_nuscene_ckpt_0shot_ego_exo #_td1_rend1_test # outputs/test/nuscene #time_df4
   compute_scores: true
 
 

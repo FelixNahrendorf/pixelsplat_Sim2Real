@@ -25,7 +25,7 @@ data_loader:
 
 test:
   depth_mode: depth
-  output_path: /app/outputs/ego_exo_sensitivity_analysis_baseline_nuscene_adjusted_test #z+std
+  output_path: /app/outputs/ego_exo_sensitivity_analysis/data_baseline_7cams_check_psnr_with_previous
   compute_scores: true
 
 trainer:
