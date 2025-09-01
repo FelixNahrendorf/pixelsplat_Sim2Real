@@ -40,6 +40,7 @@ import numpy as np
 import json
 import os 
 import time
+import matplotlib.pyplot as plt
 
 os.environ['SSL_CERT_DIR'] = '/etc/ssl/certs'
 os.environ['REQUESTS_CA_BUNDLE'] = '/etc/ssl/certs/ca-certificates.crt'
@@ -117,6 +118,31 @@ class ModelWrapper(LightningModule):
         if self.test_cfg.compute_scores:
             self.test_step_outputs = {}
             self.time_skip_steps_dict = {"encoder": 0, "decoder": 0}
+
+    def apply_inferno_colormap(self, depth_tensor):
+        """Apply inferno colormap to depth tensor using matplotlib."""
+        # Convert tensor to numpy
+        if isinstance(depth_tensor, torch.Tensor):
+            depth_np = depth_tensor.detach().cpu().numpy()
+        else:
+            depth_np = depth_tensor
+        
+        # Normalize depth values to [0, 1] for colormap
+        depth_min = depth_np.min()
+        depth_max = depth_np.max()
+        if depth_max > depth_min:
+            depth_normalized = (depth_np - depth_min) / (depth_max - depth_min)
+        else:
+            depth_normalized = np.zeros_like(depth_np)
+        
+        # Apply inferno colormap
+        cmap = plt.cm.inferno
+        colored_depth = cmap(depth_normalized)[:, :, :3]  # Remove alpha channel
+        
+        # Convert back to tensor format
+        colored_depth_tensor = torch.from_numpy(colored_depth).permute(2, 0, 1).float()
+        
+        return colored_depth_tensor
 
     def training_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
@@ -419,10 +445,18 @@ class ModelWrapper(LightningModule):
                 save_image(color, path / scene / f"color/{index:0>6}.png")
                 saved_color_images.append(color)
             
-            # Save rendered depth images
+            # COMMENTED OUT: Original depth image generation
+            # # Save rendered depth images
+            # for index, depth_map in zip(batch["target"]["index"][0], depth_prop):
+            #     save_image(depth_map.squeeze(0)/60, path / scene / f"depth/{index:0>6}.png")
+            #     saved_depth_images.append(depth_map.squeeze(0)/60)
+            
+            # NEW: Save rendered depth images with inferno colormap
             for index, depth_map in zip(batch["target"]["index"][0], depth_prop):
-                save_image(depth_map.squeeze(0)/60, path / scene / f"depth/{index:0>6}.png")
-                saved_depth_images.append(depth_map.squeeze(0)/60)
+                # Apply inferno colormap to depth
+                depth_inferno = self.apply_inferno_colormap(depth_map.squeeze(0)/60)
+                save_image(depth_inferno, path / scene / f"depth/{index:0>6}.png")
+                saved_depth_images.append(depth_inferno)
             
             # Save reference (context) images
             for index, reference_img in zip(batch["context"]["index"][0], reference_images):
@@ -750,13 +784,22 @@ class ModelWrapper(LightningModule):
 
         _, _, _, h, w = batch["context"]["image"].shape
 
-        # Color-map the result.
+        # COMMENTED OUT: Original depth mapping function using turbo colormap
+        # # Color-map the result.
+        # def depth_map(result):
+        #     near = result[result > 0][:16_000_000].quantile(0.01).log()
+        #     far = result.view(-1)[:16_000_000].quantile(0.99).log()
+        #     result = result.log()
+        #     result = 1 - (result - near) / (far - near)
+        #     return apply_color_map_to_image(result, "turbo")
+
+        # NEW: Depth mapping function using inferno colormap
         def depth_map(result):
             near = result[result > 0][:16_000_000].quantile(0.01).log()
             far = result.view(-1)[:16_000_000].quantile(0.99).log()
             result = result.log()
             result = 1 - (result - near) / (far - near)
-            return apply_color_map_to_image(result, "turbo")
+            return apply_color_map_to_image(result, "inferno")
 
         # TODO: Interpolate near and far planes?
         near = repeat(batch["context"]["near"][:, 0], "b -> b v", v=num_frames)
