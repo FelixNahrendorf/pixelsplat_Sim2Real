@@ -67,7 +67,7 @@ train:
 test:
   #output_path: outputs/test/nuscenes_td2 #nuscene 
   #output_path: /app/outputs/ego_exo_carla_on_carla_ckpt5_fix #carla
-  output_path: /app/outputs/ego_exo_sensitivity_analysis/data_baseline_7cams_check_psnr_with_previous
+  output_path: /app/outputs/ego_exo_sensitivity_analysis/data_7cams_nuscene_adjusted
   #output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td1_rend1_2
   #output_path: /app/outputs/ego_exo_nuscene_on_nuscene_ckpt_fix #nuscene_ego_exo 
   #output_path: /app/outputs/nuscene_on_nuscene_ckpt_0shot_ego_exo #_td1_rend1_test
