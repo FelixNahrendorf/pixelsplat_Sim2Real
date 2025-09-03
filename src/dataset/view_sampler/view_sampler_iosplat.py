@@ -47,12 +47,15 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
         """
         temperature = 1
         if self.cfg.num_context_views<6:
-            Choice = [0, 1, 2, 3, 4, 5] #Choice = [0, 1, 5, 3, 4, 2]
+            Choice = [0, 1, 5, 3, 4, 2] ### commented out, for testing: Choice = [0, 1, 2, 3, 4, 5] #Choice = [0, 1, 5, 3, 4, 2]
             start = random.randint(0, len(Choice) - 1)
             index_context = torch.tensor(list(islice(cycle(Choice), start, start + self.cfg.num_context_views))).to(dtype=torch.int64)
         else:
-            #index_context = torch.from_numpy(np.array([0, 1, 5, 3, 4, 2])).to(dtype=torch.int64, device=device)
-            index_context = torch.from_numpy(np.array([0, 1, 2, 3, 4, 5])).to(dtype=torch.int64, device=device)
+            index_context = torch.from_numpy(np.array([0, 1, 5, 3, 4, 2])).to(dtype=torch.int64, device=device)
+            
+            ###commented out, for testing:
+            #index_context = torch.from_numpy(np.array([0, 1, 2, 3, 5, 6])).to(dtype=torch.int64, device=device)
+
             # index_context = torch.arange(0, 6, dtype=torch.int64, device=device)
         # #
         # # We will sample only those target views that are 'similar' to the context views
@@ -74,14 +77,22 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
             else: # perform sanity check first and then create random indexes
                 assert self.cfg.num_target_views<=20 
                 #print('Checkpoint 1111111111111111111111111111111111 target_sample_weight', target_sample_weight, 'len(target_sample_weight)', len(target_sample_weight))
-                index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
-                                                                 replace=False, p=target_sample_weight)).to(dtype=torch.int64)
+                
+                ###commented out for ego-ego training
+                #index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
+                #                                                 replace=False, p=target_sample_weight)).to(dtype=torch.int64) 
+
+                index_target = torch.tensor([0,1,2,3,5,6])
         # Otherwise (training) will sample them randomly from 80 views
         elif self.stage == 'train':
             assert self.cfg.num_target_views<=80
             # #
-            index_target = torch.from_numpy(np.random.choice(np.arange(0, 80), size=self.cfg.num_target_views, 
-                                                             replace=False, p=target_sample_weight)).to(dtype=torch.int64)
+            
+            ###commented out for ego-ego training
+            #index_target = torch.from_numpy(np.random.choice(np.arange(0, 80), size=self.cfg.num_target_views, 
+            #                                                 replace=False, p=target_sample_weight)).to(dtype=torch.int64) 
+
+            index_target = torch.tensor([0,1,2,3,5,6])
         else: raise KeyError("Called dataset with wrong stage argument ... ")
         
         return index_context, index_target
