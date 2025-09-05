@@ -1,6 +1,6 @@
 name: train_carla_view
 
-num_target_views: 2
+num_target_views: 2 #2
 num_context_views: 6
 augment: false
 augment_p: 0.5
@@ -10,5 +10,5 @@ augment_mask_count: 5
 context_views: null
 target_views: null
 # #
-input_context_resolution: 256
-output_target_resolution: 256
+input_context_resolution: 64 #256 
+output_target_resolution: 64 #256 

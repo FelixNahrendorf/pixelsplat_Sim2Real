@@ -30,7 +30,7 @@ from .view_sampler import ViewSampler, ViewSamplerCfg
 from .dataset_readers import readPixelSplatCamera
 from ..misc.general_utils import img_path_to_Torch, depth_path_to_Torch
 
-SEED4D_DATASET_ROOT = '/app/inputs/seed4d/data/data_7cams_nuscene_adjusted/' 
+SEED4D_DATASET_ROOT = '/app/inputs/seed4d/data/data_baseline_7cams/' 
 assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
 
 LIDAR_DATASET_ROOT = '/app/new/seed4d/pseudo_lidar/' # Will be directory to save pseudo lidar 
@@ -80,7 +80,7 @@ class Dataset_SEED4D(Dataset):
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
             self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_train.json' for spawn_dir in self.spawn_dirs]
+            self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs] #'/sphere_invisible/transforms/transforms_ego_train.json'
             
         elif (self.stage == 'val'): # val stands for validation
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns]
@@ -88,7 +88,7 @@ class Dataset_SEED4D(Dataset):
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
             self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+            self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs] #'/sphere_invisible/transforms/transforms_ego_train.json'
             
         elif (self.stage == 'test'): # val stands for validation
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in testing_towns]
@@ -96,7 +96,7 @@ class Dataset_SEED4D(Dataset):
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
             self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+            self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs] #'/sphere_invisible/transforms/transforms_ego_test.json'
             
         else: raise ValueError("Trying to call dataset class for other purposes is not allowed")
         

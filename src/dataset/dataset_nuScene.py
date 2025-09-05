@@ -125,7 +125,7 @@ class Dataset_NUSCENE(Dataset):
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
             self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
-        elif (self.stage == 'test'): # val stands for validation
+        elif (self.stage == 'test'): 
             self.scene_names = self.usable_splits["test"]
             ### copied from seed4d dataset
             self.parent_dirs = [SEED4D_DATASET_ROOT_10_SCENES + 'Town' + town + data_dir_naming for town in testing_towns]

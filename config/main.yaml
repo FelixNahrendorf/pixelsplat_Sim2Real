@@ -53,6 +53,13 @@ checkpointing:
   #checkpoint for model trained on carla
   load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
 
+
+  #last checkpoint finetuned with ego-ego-seed4d
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-04/12-13-16/checkpoints/epoch=1504-step=420000.ckpt
+
+  #first checkpoint finetuned with ego-ego-seed4d
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-04/12-13-16/checkpoints/epoch=514-step=320000.ckpt
+
 #initial checkpoint from here:
 #/mnt/share03/eyvaz/sshELF_Benchmarks/pixelsplat/outputs/2024-11-04/14-35-32/checkpoints
   #checkpoint for model trained on carla and then on nuscenes
@@ -67,7 +74,7 @@ train:
 test:
   #output_path: outputs/test/nuscenes_td2 #nuscene 
   #output_path: /app/outputs/ego_exo_carla_on_carla_ckpt5_fix #carla
-  output_path: /app/outputs/ego_exo_sensitivity_analysis/data_7cams_nuscene_adjusted
+  output_path: /app/outputs/ego-exo_seed4d_check #ego_exo_sensitivity_analysis/data_7cams_nuscene_adjusted
   #output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td1_rend1_2
   #output_path: /app/outputs/ego_exo_nuscene_on_nuscene_ckpt_fix #nuscene_ego_exo 
   #output_path: /app/outputs/nuscene_on_nuscene_ckpt_0shot_ego_exo #_td1_rend1_test
@@ -81,5 +88,5 @@ seed: 111123
 
 trainer:
   max_steps: -1
-  val_check_interval: 500
+  val_check_interval: 10
   gradient_clip_val: 0.5
