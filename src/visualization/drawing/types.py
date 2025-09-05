@@ -10,10 +10,10 @@ Real = Union[float, int]
 Vector = Union[
     Real,
     Iterable[Real],
-    Iterable[Iterable[Real]],      # Added: for lists of tuples like [(r,g,b), (r,g,b), ...]
-    Shaped[Tensor, "2"],        # Added: single 2D point
+    Iterable[Iterable[Real]],     
+    Shaped[Tensor, "2"],        
     Shaped[Tensor, "3"],
-    Shaped[Tensor, "batch 2"],  # Added: batch of 2D points
+    Shaped[Tensor, "batch 2"],  
     Shaped[Tensor, "batch 3"],
 ]
 
