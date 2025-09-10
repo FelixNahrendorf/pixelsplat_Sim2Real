@@ -11,7 +11,7 @@ wandb:
   tags: [seed, 256x256]
 
 dataset:
-  image_shape: [64, 64] #[256, 256]
+  image_shape: [64, 64]  #[256, 256] 
   roots: [datasets/seed4d]
   training_towns:  ['02'] #['01','03','04','05','06','07', '10HD']  # Configure training towns here #training_towns = ['01','03','04','05','06','07', '10HD']
   testing_towns: ['02']   # Configure testing towns here
@@ -25,7 +25,7 @@ data_loader:
 
 test:
   depth_mode: depth
-  output_path: /app/outputs/ego-exo_seed4d_check #/app/outputs/ego_exo_sensitivity_analysis/data_7cams_nuscene_adjusted
+  output_path: /app/outputs/ego-ego_seed4d_finetune_mixed #/app/outputs/ego_exo_sensitivity_analysis/data_7cams_nuscene_adjusted
   compute_scores: true
 
 trainer:
