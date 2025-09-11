@@ -70,33 +70,37 @@ class Dataset_SEED4D(Dataset):
         
         data_dir_naming = '/ClearNoon/vehicle.audi.tt/'
         
-        # Use configuration values or default fallback
         training_towns = self.cfg.training_towns if self.cfg.training_towns is not None else ['02']
         testing_towns = self.cfg.testing_towns if self.cfg.testing_towns is not None else ['02']
         
         if (self.stage == 'train'):
-            self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns] #data/seed4d/static/Town02/ClearNoon
-            self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
-            self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
-            random.shuffle(self.spawn_dirs) 
-            self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs] #'/sphere_invisible/transforms/transforms_ego_train.json'
-            
-        elif (self.stage == 'val'): # val stands for validation
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns]
-            self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
+            self.spawn_dirs = [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle') for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
             self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs] #'/sphere_invisible/transforms/transforms_ego_train.json'
             
-        elif (self.stage == 'test'): # val stands for validation
-            self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in testing_towns]
-            self.spawn_dirs =  [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle')  for spawns_dir in self.parent_dirs]
+            # For training, we only need the spawn directories, not the full JSON paths
+            # The loading logic will handle both ego and exo views for each spawn
+            self.output_images = self.spawn_dirs  # Just store the spawn directories
+
+        elif (self.stage == 'val'): 
+            self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns]
+            self.spawn_dirs = [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle') for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
             self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs] #'/sphere_invisible/transforms/transforms_ego_test.json'
+            # ego views
+            self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+
+        elif (self.stage == 'test'): 
+            self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in testing_towns]
+            self.spawn_dirs = [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle') for spawns_dir in self.parent_dirs]
+            self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
+            random.shuffle(self.spawn_dirs) 
+            self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+            # exo views
+            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
             
         else: raise ValueError("Trying to call dataset class for other purposes is not allowed")
         
@@ -108,7 +112,6 @@ class Dataset_SEED4D(Dataset):
         #self.output_spawns = np.array(self.output_images)[:10]
         
         # configuring relevant resolution for inward and outward facing cameras
-        
         self.context_resolution = (self.view_sampler.cfg.input_context_resolution, self.view_sampler.cfg.input_context_resolution)
         self.target_resolution = (self.view_sampler.cfg.output_target_resolution, self.view_sampler.cfg.output_target_resolution)
         
@@ -116,8 +119,20 @@ class Dataset_SEED4D(Dataset):
         # Below is the important flag changing workflow of several blocks
         self.augment_flag = self.stage == 'train' and self.cfg.train_view_sampler.augment
         
-        # Here we are loading all the data into RAM 
-        _ = [self.load_example_id(idx) for idx in range(0, len(self.input_spawns))]
+        # Preload ALL input data (context)
+        print("Loading input data...")
+        test_input = [self.load_input_example_id(idx) for idx in range(0, len(self.input_spawns))]
+
+        print('stage', self.stage)
+        print('test_input', test_input)
+        print('test_input length', len(test_input))
+        
+        # Preload ALL output data (target)  
+        print("Loading output data...")
+        test_output = [self.load_output_example_id(idx) for idx in range(0, len(self.output_spawns))]
+        print('test_output', test_output)
+        print('test_output length', len(test_output))
+        
         print(f"Carla Dataset, initialized for {self.stage} stage, will use # {len(self.input_spawns)} spawns with augmentation = {self.augment_flag}")
         print(f"Training towns: {training_towns}, Testing towns: {testing_towns}")
         print(f"Selected sensors: {self.sensor_indices}")
@@ -142,8 +157,8 @@ class Dataset_SEED4D(Dataset):
     
     def _filter_context_sensor_data(self, image_paths: List[str], intrinsics: torch.Tensor, extrinsics: torch.Tensor) -> tuple:
         """Filter CONTEXT sensor data based on selected sensor indices. Only applies to ego vehicle sensors."""
-        print(f'Filtering context sensors - Original count: {len(image_paths)}')
-        print(f'Selected sensor indices: {self.sensor_indices}')
+        '''print(f'Filtering context sensors - Original count: {len(image_paths)}')
+        print(f'Selected sensor indices: {self.sensor_indices}')'''
         
         # Filter image paths using the sensor indices directly
         filtered_image_paths = [image_paths[i] for i in self.sensor_indices]
@@ -152,9 +167,9 @@ class Dataset_SEED4D(Dataset):
         filtered_intrinsics = intrinsics[self.sensor_indices]
         filtered_extrinsics = extrinsics[self.sensor_indices]
         
-        print(f'Filtering context sensors - Filtered count: {len(filtered_image_paths)}')
+        '''print(f'Filtering context sensors - Filtered count: {len(filtered_image_paths)}')
         print(f'Filtered intrinsics shape: {filtered_intrinsics.shape}')
-        print(f'Filtered extrinsics shape: {filtered_extrinsics.shape}')
+        print(f'Filtered extrinsics shape: {filtered_extrinsics.shape}')'''
         
         return filtered_image_paths, filtered_intrinsics, filtered_extrinsics
     
@@ -173,100 +188,181 @@ class Dataset_SEED4D(Dataset):
         else: raise KeyError("Wrong bound type is passed to retrieve")
         return repeat(value, "-> v", v=num_views)
 
-    def get_example_id(self, index):
+    def get_input_example_id(self, index):
+        """Get example_id for input/context data"""
         intrin_path = self.input_spawns[index]
         example_id = intrin_path[:find_nth_reverse(intrin_path, '/', 3)]
         return example_id
+
+    def get_output_example_id(self, index):
+        """Get example_id for output/target data"""
+        if self.stage == 'train':
+            # For training stage, output_spawns contains spawn directories directly
+            example_id = self.output_spawns[index]
+        else:
+            # For val/test stages, extract from the JSON path
+            output_path = self.output_spawns[index]
+            example_id = output_path[:find_nth_reverse(output_path, '/', 3)]
+        return example_id
     
-    def load_example_id(self, index):
-        
-        example_id = self.get_example_id(index)
-        
+    def load_input_example_id(self, index):
+        """Load and cache input/context data"""
+        example_id = self.get_input_example_id(index)
         input_transforms = self.input_spawns[index]
-        output_transforms = self.output_spawns[index]
         
         if not hasattr(self, "all_texture_context"):
-            
             self.all_texture_context = {}
-            self.all_texture_target = {}
-            
             self.intrinsics_context = {}
-            self.intrinsics_target = {}
-            
             self.extrinsics_context = {}
-            self.extrinsics_target = {}
             
         if example_id not in self.all_texture_context.keys():
-            
             self.all_texture_context[example_id] = []
-            self.all_texture_target[example_id] = []
-            
             self.intrinsics_context[example_id] = []
-            self.intrinsics_target[example_id] = []
-            
             self.extrinsics_context[example_id] = []
-            self.extrinsics_target[example_id] = []
-            #
-            # # obtaining intrinsics & extrinsics for context & target & render cameras
-            context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices = readPixelSplatCamera(input_transforms, resolution=self.view_sampler.cfg.input_context_resolution, 
-                                                                                                                 near=self.cfg.z_near, far=self.cfg.z_far)
-            target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
-                                                                                                              near=self.cfg.z_near, far=self.cfg.z_far)
             
-            # Filter ONLY context sensor data (ego vehicle sensors) - NOT target views
+            # Load context data
+            context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices = readPixelSplatCamera(
+                input_transforms, resolution=self.view_sampler.cfg.input_context_resolution, 
+                near=self.cfg.z_near, far=self.cfg.z_far)
+            
+            # Filter context sensor data
             context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices = self._filter_context_sensor_data(
                 context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices)
             
-            # Target views are NOT filtered - they remain as the full set of spherical/target views
-            # (target views are different camera viewpoints, not ego vehicle sensors)
-            
-            # Adding selected Ego Vehicle camera views 
+            # Store context data
             for image_path, intrins, extrins in zip(context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices):
                 self.all_texture_context[example_id].append(image_path)
                 self.intrinsics_context[example_id].append(intrins)
                 self.extrinsics_context[example_id].append(extrins)
-            # stacking intrinsics and extrinsics individually for convenience
+            
             self.intrinsics_context[example_id] = torch.stack(self.intrinsics_context[example_id]).cpu()
             self.extrinsics_context[example_id] = torch.stack(self.extrinsics_context[example_id]).cpu()
+        
+        return None  # Just for the list comprehension
+
+    def load_output_example_id(self, index):
+        """Load and cache output/target data"""
+        example_id = self.get_output_example_id(index)
+        
+        if not hasattr(self, "all_texture_target"):
+            self.all_texture_target = {}
+            self.intrinsics_target = {}
+            self.extrinsics_target = {}
             
-            # Adding ALL target camera views (no filtering applied)
-            for image_path, intrins, extrins in zip(target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices):
-                self.all_texture_target[example_id].append(image_path)
-                self.intrinsics_target[example_id].append(intrins)
-                self.extrinsics_target[example_id].append(extrins)
-            # stacking intrinsics and extrinsics individually for convenience
+        if example_id not in self.all_texture_target.keys():
+            self.all_texture_target[example_id] = []
+            self.intrinsics_target[example_id] = []
+            self.extrinsics_target[example_id] = []
+            
+            if self.stage == 'train':
+                # For training stage, load BOTH exo and ego views for each spawn point
+                
+                # Load exo views (sphere_invisible)
+                exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_train.json'
+                exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices = readPixelSplatCamera(
+                    exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
+                    near=self.cfg.z_near, far=self.cfg.z_far)
+                
+                print(f"Stage {self.stage}: Loading {len(exo_image_paths)} EXO target views from {exo_transforms}")
+                
+                # Store exo data
+                for image_path, intrins, extrins in zip(exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices):
+                    self.all_texture_target[example_id].append(image_path)
+                    self.intrinsics_target[example_id].append(intrins)
+                    self.extrinsics_target[example_id].append(extrins)
+                
+                # Load ego views (nuscenes_invisible)
+                ego_transforms = example_id + '/nuscenes_invisible/transforms/transforms_ego.json'
+                ego_image_paths, ego_intrinsics_matrices, ego_extrinsics_matrices = readPixelSplatCamera(
+                    ego_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
+                    near=self.cfg.z_near, far=self.cfg.z_far)
+                
+                # Filter ego sensor data using selected sensor indices
+                filtered_ego_image_paths = [ego_image_paths[i] for i in self.sensor_indices]
+                filtered_ego_intrinsics = ego_intrinsics_matrices[self.sensor_indices]
+                filtered_ego_extrinsics = ego_extrinsics_matrices[self.sensor_indices]
+
+                print(f"Stage {self.stage}: Filtered to {len(filtered_ego_image_paths)} EGO views using sensor indices {self.sensor_indices}")
+
+                # Store filtered ego data 
+                for _ in range(3): # Repeat 3 times to balance ego and exo views
+                    for image_path, intrins, extrins in zip(filtered_ego_image_paths, filtered_ego_intrinsics, filtered_ego_extrinsics):
+                        self.all_texture_target[example_id].append(image_path)
+                        self.intrinsics_target[example_id].append(intrins)
+                        self.extrinsics_target[example_id].append(extrins)
+                    
+            else:
+                # For val/test stages, use the original logic
+                output_transforms = self.output_spawns[index]
+                target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(
+                    output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
+                    near=self.cfg.z_near, far=self.cfg.z_far)
+                
+                print(f"Stage {self.stage}: Loading {len(target_image_paths)} target views from {output_transforms}")
+                
+                # Filter target sensor data using selected sensor indices
+                filtered_target_image_paths = [target_image_paths[i] for i in self.sensor_indices]
+                filtered_target_intrinsics = target_intrinsics_matrices[self.sensor_indices]
+                filtered_target_extrinsics = target_extrinsics_matrices[self.sensor_indices]
+                
+                print(f"Stage {self.stage}: Filtered to {len(filtered_target_image_paths)} target views using sensor indices {self.sensor_indices}")
+                
+                # Store filtered target data
+                for image_path, intrins, extrins in zip(filtered_target_image_paths, filtered_target_intrinsics, filtered_target_extrinsics):
+                    self.all_texture_target[example_id].append(image_path)
+                    self.intrinsics_target[example_id].append(intrins)
+                    self.extrinsics_target[example_id].append(extrins)
+            
             self.intrinsics_target[example_id] = torch.stack(self.intrinsics_target[example_id]).cpu()
             self.extrinsics_target[example_id] = torch.stack(self.extrinsics_target[example_id]).cpu()
+        
+        return None  # Just for the list comprehension
     
     def __getitem__(self, index):
-        example_id = self.get_example_id(index)
-        # #
-        # # view sampler needs to know context and target view extrinsics for sampling strategy
-        index_context, index_target = self.view_sampler.sample("SEED", self.extrinsics_context[example_id], 
-                                                               self.extrinsics_target[example_id])
+        input_example_id = self.get_input_example_id(index)
+        output_example_id = self.get_output_example_id(index)
+        
+        # view sampler needs to know context and target view extrinsics for sampling strategy
+        index_context, index_target = self.view_sampler.sample("SEED", 
+                                                               self.extrinsics_context[input_example_id], 
+                                                               self.extrinsics_target[output_example_id])
         
         #######################################################################
         #
         #######################################################################
         ############### Loading Context/Conditional Information ###############
         context_images = [img_path_to_Torch(image_path, self.context_resolution)
-                          for image_path in np.array(self.all_texture_context[example_id])[index_context.numpy()]]
+                          for image_path in np.array(self.all_texture_context[input_example_id])[index_context.numpy()]]
         context_images = torch.stack(context_images).float()
-        context_extrinsics = self.extrinsics_context[example_id][index_context.numpy()]
-        context_intrinsics = self.intrinsics_context[example_id][index_context.numpy()]
+        context_extrinsics = self.extrinsics_context[input_example_id][index_context.numpy()]
+        context_intrinsics = self.intrinsics_context[input_example_id][index_context.numpy()]
+        
         #######################################################################
         ################ Loading Inference Target Information #################
+        
+        # Add bounds checking before accessing target images
+        max_available_views = len(self.all_texture_target[output_example_id])
+        if any(idx >= max_available_views for idx in index_target.numpy()):
+            print(f"Warning: Requested indices {index_target.numpy()} exceed available views ({max_available_views}) for {output_example_id}")
+            # Clamp indices to valid range
+            index_target = torch.clamp(index_target, 0, max_available_views - 1)
+            print(f"Clamped indices to: {index_target.numpy()}")
+        
         # Reading images
+        print('index_target.numpy()', index_target.numpy())
+        print('output_example_id', output_example_id)
+        print('len self.all_texture_target[output_example_id]', len(self.all_texture_target[output_example_id]))
+
         target_images = [img_path_to_Torch(image_path, self.target_resolution)
-                         for image_path in np.array(self.all_texture_target[example_id])[index_target.numpy()]]
+                         for image_path in np.array(self.all_texture_target[output_example_id])[index_target.numpy()]]
         target_images = torch.stack(target_images).float()
         # Reading depth maps
         target_depths = [depth_path_to_Torch(image_path[:image_path.rfind('_')] + "_depth.png", self.target_resolution)
-                         for image_path in np.array(self.all_texture_target[example_id])[index_target.numpy()]]
+                         for image_path in np.array(self.all_texture_target[output_example_id])[index_target.numpy()]]
         target_depths = torch.stack(target_depths).float()
         # Reading Camera params
-        target_extrinsics = self.extrinsics_target[example_id][index_target.numpy()]
-        target_intrinsics = self.intrinsics_target[example_id][index_target.numpy()]
+        target_extrinsics = self.extrinsics_target[output_example_id][index_target.numpy()]
+        target_intrinsics = self.intrinsics_target[output_example_id][index_target.numpy()]
         
         #######################################################################
         #######################################################################
@@ -293,13 +389,12 @@ class Dataset_SEED4D(Dataset):
                     "scene": "Carla"}
 
 
-        print("=== FINAL DATA FED TO MODEL ===")
+        '''print("=== FINAL DATA FED TO MODEL ===")
         print('context_resolution:', self.context_resolution) ###DEBUG
         print('context_resolution[0]:', self.context_resolution[0]) ###DEBUG
         print(f"Resolution: {self.view_sampler.cfg.output_target_resolution}")
-        #print(f"Output transforms file: {output_transforms}")
         print(f"Index target: {index_target.numpy()}")
-        print(f"Target intrinsics shape: {self.intrinsics_target[example_id].shape}")
+        print(f"Target intrinsics shape: {self.intrinsics_target[output_example_id].shape}")
 
         print("Context intrinsics shape:", example['context']['intrinsics'].shape)
         print("Context intrinsics:\n", example['context']['intrinsics'])
@@ -309,7 +404,7 @@ class Dataset_SEED4D(Dataset):
         print("Target intrinsics:\n", example['target']['intrinsics'])
         print("Target extrinsics shape:", example['target']['extrinsics'].shape)
         print("Target extrinsics:\n", example['target']['extrinsics'])
-        print("="*50)         
+        print("="*50)  '''       
         return example
         
 ################################################################################################
@@ -323,6 +418,6 @@ def str_list_concat(pre_string, folders_dir, post_string):
 def find_nth_reverse(haystack: str, needle: str, n: int) -> int:
     end = haystack.rfind(needle)
     while end >= 0 and n > 1:
-        end = haystack.rfind(needle, 0, end - len(needle))
+        end = haystack.rfind(needle, 0, end - len(haystack))
         n -= 1
     return end
