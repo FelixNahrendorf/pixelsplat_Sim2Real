@@ -51,7 +51,7 @@ optimizer:
 
 checkpointing:
   #checkpoint for model trained on carla
-  #load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
+  load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
 
 
   #last checkpoint finetuned with ego-ego-seed4d
@@ -61,7 +61,7 @@ checkpointing:
   #load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-04/12-13-16/checkpoints/epoch=514-step=320000.ckpt
 
   #checkpoint finetuned with mixed dataset
-  load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-10/12-32-11/checkpoints/epoch=910-step=360000.ckpt
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-10/12-32-11/checkpoints/epoch=910-step=360000.ckpt
 
 #initial checkpoint from here:
 #/mnt/share03/eyvaz/sshELF_Benchmarks/pixelsplat/outputs/2024-11-04/14-35-32/checkpoints
