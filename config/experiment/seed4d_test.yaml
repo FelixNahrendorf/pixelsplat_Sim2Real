@@ -25,7 +25,7 @@ data_loader:
 
 test:
   depth_mode: depth
-  output_path: /app/outputs/ego-ego_seed4d_finetune_mixed #/app/outputs/ego_exo_sensitivity_analysis/data_7cams_nuscene_adjusted
+  output_path: /app/outputs/ego-ego_seed4d_finetune_mixed_98cams #/app/outputs/ego_exo_sensitivity_analysis/data_7cams_nuscene_adjusted
   compute_scores: true
 
 trainer:

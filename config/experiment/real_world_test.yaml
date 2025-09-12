@@ -11,7 +11,7 @@ wandb:
   tags: [seed, 256x256]
 
 dataset:
-  image_shape: [256, 256]
+  image_shape: [64, 64] #[256, 256]
   roots: [dataset/nuscene]
 
 data_loader:
@@ -27,7 +27,7 @@ trainer:
 
 test:
   depth_mode: depth
-  output_path: /app/outputs/nuscene_on_nuscene_ckpt_0shot_ego_exo #_td1_rend1_test # outputs/test/nuscene #time_df4
+  output_path: /app/outputs/ego-ego_nuscene_finetune_mixed_98cams_td1_1 #_td1_rend1_test # outputs/test/nuscene #time_df4
   compute_scores: true
 
 

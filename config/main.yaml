@@ -1,18 +1,18 @@
 defaults:
   #- dataset: nuscene_ego_exo
-  #- dataset: nuscene #nuscene
+  - dataset: nuscene #nuscene
   #- dataset: carla #carla
-  - dataset: seed4d #seed4d
+  #- dataset: seed4d #seed4d
   - model/encoder: epipolar
   - model/decoder: splatting_cuda
-  #- loss: [mse, lpips] #nuscene
+  - loss: [mse, lpips] #nuscene
   #- loss: [mse, mae] #carla
-  - loss: [mse, mae] #seed4d
+  #- loss: [mse, mae] #seed4d
 
 wandb:
-  #project: pixelsplat_nuScene_td1_rend1_test_nuscene_ckpt #nuscene 
+  project: pixelsplat_nuScene_td1_rend1_mixed #nuscene 
   #project: pixelsplat_mae_test_carla #carla
-  project: pixelsplat_mae_test_seed4d #seed4d
+  #project: pixelsplat_mae_test_seed4d #seed4d
   #project: pixelsplat_nuscene_ego_exo #nuscene_ego_exo
   entity: scene-representation-group
   name: placeholder
@@ -51,7 +51,7 @@ optimizer:
 
 checkpointing:
   #checkpoint for model trained on carla
-  load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
+  #load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
 
 
   #last checkpoint finetuned with ego-ego-seed4d
@@ -60,8 +60,11 @@ checkpointing:
   #first checkpoint finetuned with ego-ego-seed4d
   #load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-04/12-13-16/checkpoints/epoch=514-step=320000.ckpt
 
-  #checkpoint finetuned with mixed dataset
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-10/12-32-11/checkpoints/epoch=910-step=360000.ckpt
+  #checkpoint finetuned with mixed dataset 86cams
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-11/11-26-51_86_cams/checkpoints/epoch=2296-step=500000.ckpt
+
+  #checkpoint finetuned with mixed dataset 98cams
+  load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-11/11-46-09 98 cams/checkpoints/epoch=2296-step=500000.ckpt
 
 #initial checkpoint from here:
 #/mnt/share03/eyvaz/sshELF_Benchmarks/pixelsplat/outputs/2024-11-04/14-35-32/checkpoints
@@ -77,7 +80,8 @@ train:
 test:
   #output_path: outputs/test/nuscenes_td2 #nuscene 
   #output_path: /app/outputs/ego_exo_carla_on_carla_ckpt5_fix #carla
-  output_path: /app/outputs/ego-ego_seed4d_finetune_mixed #ego_exo_sensitivity_analysis/data_7cams_nuscene_adjusted
+  #output_path: /app/outputs/ego-ego_seed4d_finetune_mixed_98cams #ego_exo_sensitivity_analysis/data_7cams_nuscene_adjusted
+  output_path: /app/outputs/ego-ego_nuscene_finetune_mixed_98cams_td1_1
   #output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td1_rend1_2
   #output_path: /app/outputs/ego_exo_nuscene_on_nuscene_ckpt_fix #nuscene_ego_exo 
   #output_path: /app/outputs/nuscene_on_nuscene_ckpt_0shot_ego_exo #_td1_rend1_test

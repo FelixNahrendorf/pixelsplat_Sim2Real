@@ -1,6 +1,6 @@
 name: eval_nuscene_view
 
-num_target_views: 20 #ego-exo, for ego-ego the value is: 6 
+num_target_views: 6 #20 #ego-exo, for ego-ego the value is: 6 
 num_context_views: 6
 augment: false
 augment_p: 0.5
@@ -12,5 +12,5 @@ nuscene_version: v1.0-test         # is different than carla version
 context_views: null
 target_views: null
 # #
-input_context_resolution: 256
-output_target_resolution: 256
+input_context_resolution: 64 #256
+output_target_resolution: 64 #256
