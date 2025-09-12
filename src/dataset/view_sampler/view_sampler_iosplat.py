@@ -83,7 +83,7 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
             # If not, then randomly select them
             elif self.stage=='test': #exo-views
                 #index_target = torch.tensor([0,1,2,3,5,6])
-                index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
+                index_target = torch.from_numpy(np.random.choice(np.arange(0, 6), size=self.cfg.num_target_views, 
                                                             replace=False)).to(dtype=torch.int64) 
             elif self.stage=='val': #ego-views
                 #index_target = torch.tensor([0,1,2,3,5,6])
