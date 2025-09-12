@@ -100,7 +100,9 @@ class Dataset_SEED4D(Dataset):
             random.shuffle(self.spawn_dirs) 
             self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
             # exo views
-            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+            #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+            #ego views
+            self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
             
         else: raise ValueError("Trying to call dataset class for other purposes is not allowed")
         
@@ -300,7 +302,7 @@ class Dataset_SEED4D(Dataset):
                 
                 print(f"Stage {self.stage}: Loading {len(target_image_paths)} target views from {output_transforms}")
                 
-                # Filter target sensor data using selected sensor indices
+                # Filter target sensor data using selected sensor indices, only when testing ego-ego generation
                 filtered_target_image_paths = [target_image_paths[i] for i in self.sensor_indices]
                 filtered_target_intrinsics = target_intrinsics_matrices[self.sensor_indices]
                 filtered_target_extrinsics = target_extrinsics_matrices[self.sensor_indices]
