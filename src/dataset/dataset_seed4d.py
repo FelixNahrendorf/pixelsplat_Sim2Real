@@ -30,7 +30,7 @@ from .view_sampler import ViewSampler, ViewSamplerCfg
 from .dataset_readers import readPixelSplatCamera
 from ..misc.general_utils import img_path_to_Torch, depth_path_to_Torch
 
-SEED4D_DATASET_ROOT = '/app/inputs/seed4d/data/data_baseline_7cams/' 
+SEED4D_DATASET_ROOT = '/app/inputs/seed4d/data/data_diverse/static/' 
 assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
 
 LIDAR_DATASET_ROOT = '/app/new/seed4d/pseudo_lidar/' # Will be directory to save pseudo lidar 
@@ -78,20 +78,41 @@ class Dataset_SEED4D(Dataset):
             self.spawn_dirs = [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle') for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
+            
+            ###ego-exo training
             self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_train.json' for spawn_dir in self.spawn_dirs]
+            
+            
+            ### ego-ego and ego-exo-mixed training
+            #self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
             
             # For training, we only need the spawn directories, not the full JSON paths
             # The loading logic will handle both ego and exo views for each spawn
-            self.output_images = self.spawn_dirs  # Just store the spawn directories
+            #self.output_images = self.spawn_dirs  # Just store the spawn directories
 
         elif (self.stage == 'val'): 
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns]
             self.spawn_dirs = [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle') for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
+            
+            ###ego-exo training
             self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+            
+            
+            ### ego-ego and ego-exo-mixed training
+            #self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
             # ego views
-            self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+            #self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+
+            ### ego-ego and ego-exo-mixed training
+            #self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+            
+            # For training, we only need the spawn directories, not the full JSON paths
+            # The loading logic will handle both ego and exo views for each spawn
+            #self.output_images = self.spawn_dirs  # Just store the spawn directories
 
         elif (self.stage == 'test'): 
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in testing_towns]
@@ -99,10 +120,15 @@ class Dataset_SEED4D(Dataset):
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
             self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+            
+            
+            ### ego-ego and ego-exo-mixed training
+            #self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
             # exo views
             #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
             #ego views
-            self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+            #self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
             
         else: raise ValueError("Trying to call dataset class for other purposes is not allowed")
         
@@ -257,42 +283,65 @@ class Dataset_SEED4D(Dataset):
             self.extrinsics_target[example_id] = []
             
             if self.stage == 'train':
-                # For training stage, load BOTH exo and ego views for each spawn point
-                
-                # Load exo views (sphere_invisible)
-                exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_train.json'
-                exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices = readPixelSplatCamera(
-                    exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
-                    near=self.cfg.z_near, far=self.cfg.z_far)
-                
-                print(f"Stage {self.stage}: Loading {len(exo_image_paths)} EXO target views from {exo_transforms}")
-                
-                # Store exo data
-                for image_path, intrins, extrins in zip(exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices):
-                    self.all_texture_target[example_id].append(image_path)
-                    self.intrinsics_target[example_id].append(intrins)
-                    self.extrinsics_target[example_id].append(extrins)
-                
-                # Load ego views (nuscenes_invisible)
-                ego_transforms = example_id + '/nuscenes_invisible/transforms/transforms_ego.json'
-                ego_image_paths, ego_intrinsics_matrices, ego_extrinsics_matrices = readPixelSplatCamera(
-                    ego_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
-                    near=self.cfg.z_near, far=self.cfg.z_far)
-                
-                # Filter ego sensor data using selected sensor indices
-                filtered_ego_image_paths = [ego_image_paths[i] for i in self.sensor_indices]
-                filtered_ego_intrinsics = ego_intrinsics_matrices[self.sensor_indices]
-                filtered_ego_extrinsics = ego_extrinsics_matrices[self.sensor_indices]
-
-                print(f"Stage {self.stage}: Filtered to {len(filtered_ego_image_paths)} EGO views using sensor indices {self.sensor_indices}")
-
-                # Store filtered ego data 
-                for _ in range(3): # Repeat 3 times to balance ego and exo views
-                    for image_path, intrins, extrins in zip(filtered_ego_image_paths, filtered_ego_intrinsics, filtered_ego_extrinsics):
+                ###ego-ego/ego-exo mixed training only
+                if os.path.isdir(example_id):
+                    # For training stage, load BOTH exo and ego views for each spawn point
+                    
+                    # Load exo views (sphere_invisible)
+                    exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_train.json'
+                    exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices = readPixelSplatCamera(
+                        exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
+                        near=self.cfg.z_near, far=self.cfg.z_far)
+                    
+                    print(f"Stage {self.stage}: Loading {len(exo_image_paths)} EXO target views from {exo_transforms}")
+                    
+                    # Store exo data
+                    for image_path, intrins, extrins in zip(exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices):
                         self.all_texture_target[example_id].append(image_path)
                         self.intrinsics_target[example_id].append(intrins)
                         self.extrinsics_target[example_id].append(extrins)
                     
+                    # Load ego views (nuscenes_invisible)
+                    ego_transforms = example_id + '/nuscenes_invisible/transforms/transforms_ego.json'
+                    ego_image_paths, ego_intrinsics_matrices, ego_extrinsics_matrices = readPixelSplatCamera(
+                        ego_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
+                        near=self.cfg.z_near, far=self.cfg.z_far)
+                    
+                    # Filter ego sensor data using selected sensor indices
+                    filtered_ego_image_paths = ego_image_paths #[ego_image_paths[i] for i in self.sensor_indices] #uncommented since only sensors 0-5 are generated
+                    filtered_ego_intrinsics = ego_intrinsics_matrices #ego_intrinsics_matrices[self.sensor_indices] #uncommented since only sensors 0-5 are generated
+                    filtered_ego_extrinsics = ego_extrinsics_matrices #ego_extrinsics_matrices[self.sensor_indices] #uncommented since only sensors 0-5 are generated
+
+                    print(f"Stage {self.stage}: Filtered to {len(filtered_ego_image_paths)} EGO views using sensor indices {self.sensor_indices}")
+
+                    # Store filtered ego data 
+                    for _ in range(3): # Repeat 3 times to balance ego and exo views
+                        for image_path, intrins, extrins in zip(filtered_ego_image_paths, filtered_ego_intrinsics, filtered_ego_extrinsics):
+                            self.all_texture_target[example_id].append(image_path)
+                            self.intrinsics_target[example_id].append(intrins)
+                            self.extrinsics_target[example_id].append(extrins)
+                
+                ###ego-exo training only
+                else:
+                    output_transforms = self.output_spawns[index]
+                    target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(
+                    output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
+                    near=self.cfg.z_near, far=self.cfg.z_far)
+                
+                    print(f"Stage {self.stage}: Loading {len(target_image_paths)} target views from {output_transforms}")
+                
+                    # Filter target sensor data using selected sensor indices, only when testing ego-ego generation
+                    filtered_target_image_paths = target_image_paths #[target_image_paths[i] for i in self.sensor_indices]
+                    filtered_target_intrinsics = target_intrinsics_matrices #target_intrinsics_matrices[self.sensor_indices]
+                    filtered_target_extrinsics = target_extrinsics_matrices #target_extrinsics_matrices[self.sensor_indices]
+                    
+                    #print(f"Stage {self.stage}: Filtered to {len(filtered_target_image_paths)} target views using sensor indices {self.sensor_indices}")
+                    
+                    # Store filtered target data
+                    for image_path, intrins, extrins in zip(filtered_target_image_paths, filtered_target_intrinsics, filtered_target_extrinsics):
+                        self.all_texture_target[example_id].append(image_path)
+                        self.intrinsics_target[example_id].append(intrins)
+                        self.extrinsics_target[example_id].append(extrins)    
             else:
                 # For val/test stages, use the original logic
                 output_transforms = self.output_spawns[index]
