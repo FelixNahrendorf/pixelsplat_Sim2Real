@@ -10,5 +10,5 @@ augment_mask_count: 5
 context_views: null
 target_views: null
 # #
-input_context_resolution: 64 #256 
-output_target_resolution: 64 #256 
+input_context_resolution: 128 #256 #64 #256 
+output_target_resolution: 128 #256 #64 #256 
