@@ -11,9 +11,9 @@ from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers.wandb import WandbLogger
 # from lightning.pytorch.plugins.environments import SLURMEnvironment
 from omegaconf import DictConfig, OmegaConf
-os.environ["CUDA_VISIBLE_DEVICES"]='2'
-os.environ['SSL_CERT_DIR'] = '/etc/ssl/certs'
-os.environ['REQUESTS_CA_BUNDLE'] = '/etc/ssl/certs/ca-certificates.crt'
+#os.environ["CUDA_VISIBLE_DEVICES"]='2'
+#os.environ['SSL_CERT_DIR'] = '/etc/ssl/certs'
+#os.environ['REQUESTS_CA_BUNDLE'] = '/etc/ssl/certs/ca-certificates.crt'
 
 # Configure beartype and jaxtyping.
 with install_import_hook(
