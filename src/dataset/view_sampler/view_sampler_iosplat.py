@@ -75,7 +75,8 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
         target_sample_weight = np.max(target_sample_weight_map, axis=0)
         target_sample_weight = softmax(temperature*target_sample_weight)
 
-        if self.stage=='test' or self.stage=='val':
+        ###ego-ego/ego-exo mixed training
+        '''if self.stage=='test' or self.stage=='val':
             # If the (hardcoded) target views are not None, then use them  
             if self.cfg.target_views is not None:
                 assert len(self.cfg.target_views) == self.cfg.num_target_views
@@ -101,6 +102,26 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                                                              replace=False)).to(dtype=torch.int64) 
 
 
+        else: raise KeyError("Called dataset with wrong stage argument ... ")'''
+
+
+        ##ego-exo training
+        if self.stage=='test' or self.stage=='val':
+            # If the target views are not None, then use them
+            if self.cfg.target_views is not None: 
+                assert len(self.cfg.target_views) == self.cfg.num_target_views
+                index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
+            # If not, then randomly select them
+            else: # perform sanity check first and then create random indexes
+                assert self.cfg.num_target_views<=20 
+                index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
+                                                                 replace=False)).to(dtype=torch.int64)
+        # Otherwise (training) will sample them randomly from 80 views
+        elif self.stage == 'train':
+            assert self.cfg.num_target_views<=80
+            # #
+            index_target = torch.from_numpy(np.random.choice(np.arange(0, 80), size=self.cfg.num_target_views, 
+                                                             replace=False)).to(dtype=torch.int64)
         else: raise KeyError("Called dataset with wrong stage argument ... ")
         
         return index_context, index_target
