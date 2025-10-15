@@ -43,10 +43,12 @@ class Dataset_SEED4DCfg(DatasetCfgCommon):
     max_fov: float
     z_near: float
     z_far: float
+    experiment: str
     training_towns: List[str] = None  # Add training towns configuration
     testing_towns: List[str] = None   # Add testing towns configuration
     selected_sensors: Optional[List[int]] = None  # List of sensor indices to use
     #sensor_range: Optional[List[int]] = None  # Alternative: [start, end] range of sensors
+    
 
 class Dataset_SEED4D(Dataset):
     cfg: Dataset_SEED4DCfg
@@ -80,16 +82,16 @@ class Dataset_SEED4D(Dataset):
             random.shuffle(self.spawn_dirs) 
             
             ###ego-exo training
-            self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_train.json' for spawn_dir in self.spawn_dirs]
-            
+            #self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+            #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_train.json' for spawn_dir in self.spawn_dirs]
             
             ### ego-ego and ego-exo-mixed training
-            #self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            
-            # For training, we only need the spawn directories, not the full JSON paths
-            # The loading logic will handle both ego and exo views for each spawn
-            #self.output_images = self.spawn_dirs  # Just store the spawn directories
+            assert self.cfg.experiment is not None
+            if self.cfg.experiment == 'ego-exo-mixed':
+                self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+                self.output_images = self.spawn_dirs  
+
+
 
         elif (self.stage == 'val'): 
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns]
@@ -98,10 +100,16 @@ class Dataset_SEED4D(Dataset):
             random.shuffle(self.spawn_dirs) 
             
             ###ego-exo training
-            self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
-            
-            
+            #self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+            #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+            assert self.cfg.experiment is not None
+            if self.cfg.experiment == 'ego-exo-mixed':
+                self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+                self.output_images = self.spawn_dirs  # Just store the spawn directories
+
+
+
+
             ### ego-ego and ego-exo-mixed training
             #self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
             # ego views
@@ -114,13 +122,18 @@ class Dataset_SEED4D(Dataset):
             # The loading logic will handle both ego and exo views for each spawn
             #self.output_images = self.spawn_dirs  # Just store the spawn directories
 
+
+
+
         elif (self.stage == 'test'): 
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in testing_towns]
             self.spawn_dirs = [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle') for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
             random.shuffle(self.spawn_dirs) 
-            self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+            
+            ###ego-exo training
+            #self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+            #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
             
             
             ### ego-ego and ego-exo-mixed training
@@ -224,13 +237,16 @@ class Dataset_SEED4D(Dataset):
 
     def get_output_example_id(self, index):
         """Get example_id for output/target data"""
-        if self.stage == 'train':
-            # For training stage, output_spawns contains spawn directories directly
+        if self.cfg.experiment == 'ego-exo-mixed':
             example_id = self.output_spawns[index]
-        else:
-            # For val/test stages, extract from the JSON path
-            output_path = self.output_spawns[index]
-            example_id = output_path[:find_nth_reverse(output_path, '/', 3)]
+
+        #if self.stage == 'train' or self.stage == 'val':
+            # For training and val stages, output_spawns contains spawn directories directly
+        #    example_id = self.output_spawns[index]
+        #else:
+            # For test stage, extract from the JSON path
+        #    output_path = self.output_spawns[index]
+        #    example_id = output_path[:find_nth_reverse(output_path, '/', 3)]
         return example_id
     
     def load_input_example_id(self, index):
@@ -282,9 +298,10 @@ class Dataset_SEED4D(Dataset):
             self.intrinsics_target[example_id] = []
             self.extrinsics_target[example_id] = []
             
-            if self.stage == 'train':
+            if self.stage == 'train' or self.stage == 'val':
                 ###ego-ego/ego-exo mixed training only
-                if os.path.isdir(example_id):
+                if self.cfg.experiment == 'ego-exo-mixed':
+                #if os.path.isdir(example_id): ##can be deleted if its running
                     # For training stage, load BOTH exo and ego views for each spawn point
                     
                     # Load exo views (sphere_invisible)
@@ -322,7 +339,7 @@ class Dataset_SEED4D(Dataset):
                             self.extrinsics_target[example_id].append(extrins)
                 
                 ###ego-exo training only
-                else:
+                elif self.cfg.experiment == 'ego-exo':
                     output_transforms = self.output_spawns[index]
                     target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(
                     output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
@@ -343,7 +360,7 @@ class Dataset_SEED4D(Dataset):
                         self.intrinsics_target[example_id].append(intrins)
                         self.extrinsics_target[example_id].append(extrins)    
             else:
-                # For val/test stages, use the original logic
+                # For test stages, use the original logic
                 output_transforms = self.output_spawns[index]
                 target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(
                     output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
@@ -376,7 +393,8 @@ class Dataset_SEED4D(Dataset):
         # view sampler needs to know context and target view extrinsics for sampling strategy
         index_context, index_target = self.view_sampler.sample("SEED", 
                                                                self.extrinsics_context[input_example_id], 
-                                                               self.extrinsics_target[output_example_id])
+                                                               self.extrinsics_target[output_example_id],
+                                                               self.cfg.experiment)
         
         #######################################################################
         #
