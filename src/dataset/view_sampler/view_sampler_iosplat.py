@@ -86,28 +86,11 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                     assert len(self.cfg.target_views) == self.cfg.num_target_views
                     index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
                 # If not, then randomly select them
-
-                ###elif self.stage=='test': #exo-views
-                ###    #index_target = torch.tensor([0,1,2,3,5,6])
-                ###    index_target = torch.from_numpy(np.random.choice(np.arange(0, 6), size=self.cfg.num_target_views, 
-                ###                                                replace=False)).to(dtype=torch.int64)
-
                 else:
                     assert self.cfg.num_target_views<=20 
                     index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
-                                                                    replace=False)).to(dtype=torch.int64)
-                '''elif self.stage=='val': #ego-views
-                    #index_target = torch.tensor([0,1,2,3,5,6])
-                    index_target = torch.from_numpy(np.random.choice(np.arange(0, 6), size=self.cfg.num_target_views, 
-                                                                replace=False)).to(dtype=torch.int64)''' 
-            # Otherwise (training) will sample them randomly from 80 views
+                                                                    replace=False)).to(dtype=torch.int64) 
             elif self.stage == 'train':
-                #assert self.cfg.num_target_views<=80
-                ###ego-exo 
-                #index_target = torch.from_numpy(np.random.choice(np.arange(0, 80), size=self.cfg.num_target_views, 
-                #                                                 replace=False, p=target_sample_weight)).to(dtype=torch.int64) 
-                ###ego-ego training and mixed ego-ego/ego-exo training (the transform files either have )
-                #index_target = torch.tensor([0,1,2,3,5,6])
                 index_target = torch.from_numpy(np.random.choice(np.arange(0, 98), size=self.cfg.num_target_views, 
                                                                 replace=False)).to(dtype=torch.int64) 
 
@@ -126,22 +109,14 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
             elif self.stage == 'train':
                 index_target = torch.from_numpy(np.random.choice(np.arange(0, 80), size=self.cfg.num_target_views, 
                                                                 replace=False, p=target_sample_weight)).to(dtype=torch.int64) 
-            #if self.stage=='test' or self.stage=='val':
-            #    index_target = torch.from_numpy(np.random.choice(np.arange(0, 6), size=self.cfg.num_target_views, 
-            #                                                    replace=False)).to(dtype=torch.int64)
-            #elif self.stage == 'train':
-                ###ego-exo 
-            #    index_target = torch.from_numpy(np.random.choice(np.arange(0, 80), size=self.cfg.num_target_views, 
-            #                                                    replace=False, p=target_sample_weight)).to(dtype=torch.int64) 
         elif experiment == "ego-ego":
-
             # If the (hardcoded) target views are not None, then use them  
             if self.cfg.target_views is not None:
                 assert len(self.cfg.target_views) == self.cfg.num_target_views
                 index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
             else:
-                index_target = torch.from_numpy(np.random.choice(np.arange(0, 6), size=self.cfg.num_target_views, 
-                                                                    replace=False)).to(dtype=torch.int64)
+                ### no randomization for ego-ego testing for better visual comaprison of the images
+                index_target = torch.tensor([0,1,2,3,4,5])
 
         return index_context, index_target
     
