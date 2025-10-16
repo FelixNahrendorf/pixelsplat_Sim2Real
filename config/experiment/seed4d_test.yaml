@@ -11,22 +11,24 @@ wandb:
   tags: [seed, 256x256]
 
 dataset:
-  image_shape: [64, 64]  #[256, 256] 
+  image_shape: [128, 128]  #[256, 256] 
   roots: [datasets/seed4d]
-  training_towns:  ['02'] #['01','03','04','05','06','07', '10HD']  # Configure training towns here #training_towns = ['01','03','04','05','06','07', '10HD']
+  training_towns: ['01','03','04','05','06','07', '10HD']  # Configure training towns here #training_towns = ['01','03','04','05','06','07', '10HD']
   testing_towns: ['02']   # Configure testing towns here
-  selected_sensors: [0, 1, 2, 3, 5, 6]  # List of sensor indices to use (0-6 based on transforms_ego.json)
+  selected_sensors: [0, 1, 2, 3, 4, 5]  # List of sensor indices to use (0-6 based on transforms_ego.json)
   # Alternative: you can also specify sensor ranges
   # sensor_range: [0, 6]  # Use sensors from index 0 to 6 (inclusive)
+  experiment: ego-exo-mixed #ego-exo-mixed #ego-ego 
 
 data_loader:
   train:
-    batch_size: 1 # 7 
+    batch_size: 2 # 7 
 
 test:
   depth_mode: depth
-  output_path: /app/outputs/ego-ego_seed4d_finetune_mixed_98cams #/app/outputs/ego_exo_sensitivity_analysis/data_7cams_nuscene_adjusted
+  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo_SEED4D-eval_ego-ego_SEED4D #/app/outputs/ego_exo_sensitivity_analysis/data_7cams_nuscene_adjusted
   compute_scores: true
 
+
 trainer:
-  max_steps: 500_001
+  max_steps: 300_001

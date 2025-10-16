@@ -11,8 +11,9 @@ wandb:
   tags: [seed, 256x256]
 
 dataset:
-  image_shape: [64, 64] #[256, 256]
+  image_shape: [128, 128] #[64, 64] #[256, 256]
   roots: [dataset/nuscene]
+  experiment: ego-ego #ego-exo-mixed #ego-ego 
 
 data_loader:
   train:
@@ -20,14 +21,10 @@ data_loader:
 
 trainer:
   max_steps: 400_001
-  #devices: 1
-  #accelerator: gpu
-  #strategy:  "single_device"
-  #num_nodes: 1
 
 test:
   depth_mode: depth
-  output_path: /app/outputs/ego-ego_nuscene_finetune_mixed_98cams_td1_1 #_td1_rend1_test # outputs/test/nuscene #time_df4
+  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo_SEED4D-eval_ego-ego_Nuscene
   compute_scores: true
 
 
