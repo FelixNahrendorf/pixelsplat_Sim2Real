@@ -30,7 +30,7 @@ from .view_sampler import ViewSampler, ViewSamplerCfg
 from .dataset_readers import readPixelSplatCamera
 from ..misc.general_utils import img_path_to_Torch, depth_path_to_Torch
 
-SEED4D_DATASET_ROOT = '/app/inputs/seed4d/data/data_diverse/static/' 
+SEED4D_DATASET_ROOT = '/app/inputs/seed4d/data/data_baseline/static/' #'/app/inputs/seed4d/data/data_diverse/static/' 
 assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
 
 LIDAR_DATASET_ROOT = '/app/new/seed4d/pseudo_lidar/' # Will be directory to save pseudo lidar 
@@ -129,11 +129,16 @@ class Dataset_SEED4D(Dataset):
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in testing_towns]
             self.spawn_dirs = [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle') for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
+            print(f"DEBUG TEST STAGE: Total spawn directories found: {len(self.spawn_dirs)}")
             random.shuffle(self.spawn_dirs) 
-            
-            ###ego-exo training
-            #self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+
+            assert self.cfg.experiment is not None
+            if self.cfg.experiment == 'ego-exo':
+                self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+                self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+            elif self.cfg.experiment == 'ego-ego':
+                self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+                self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
             
             
             ### ego-ego and ego-exo-mixed training
@@ -239,14 +244,9 @@ class Dataset_SEED4D(Dataset):
         """Get example_id for output/target data"""
         if self.cfg.experiment == 'ego-exo-mixed':
             example_id = self.output_spawns[index]
-
-        #if self.stage == 'train' or self.stage == 'val':
-            # For training and val stages, output_spawns contains spawn directories directly
-        #    example_id = self.output_spawns[index]
-        #else:
-            # For test stage, extract from the JSON path
-        #    output_path = self.output_spawns[index]
-        #    example_id = output_path[:find_nth_reverse(output_path, '/', 3)]
+        elif self.cfg.experiment == 'ego-exo' or self.cfg.experiment == 'ego-ego':
+            output_path = self.output_spawns[index]
+            example_id = output_path[:find_nth_reverse(output_path, '/', 3)]
         return example_id
     
     def load_input_example_id(self, index):
@@ -298,7 +298,7 @@ class Dataset_SEED4D(Dataset):
             self.intrinsics_target[example_id] = []
             self.extrinsics_target[example_id] = []
             
-            if self.stage == 'train' or self.stage == 'val':
+            if self.stage == 'train' or self.stage == 'val' or self.stage == 'test':
                 ###ego-ego/ego-exo mixed training only
                 if self.cfg.experiment == 'ego-exo-mixed':
                 #if os.path.isdir(example_id): ##can be deleted if its running
@@ -339,7 +339,7 @@ class Dataset_SEED4D(Dataset):
                             self.extrinsics_target[example_id].append(extrins)
                 
                 ###ego-exo training only
-                elif self.cfg.experiment == 'ego-exo':
+                elif self.cfg.experiment == 'ego-exo' or self.cfg.experiment == 'ego-ego':
                     output_transforms = self.output_spawns[index]
                     target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(
                     output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
