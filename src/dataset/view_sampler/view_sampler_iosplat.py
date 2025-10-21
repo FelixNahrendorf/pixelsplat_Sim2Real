@@ -38,6 +38,7 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
         extrinsics_target: Float[Tensor, "tview 4 4"],
         experiment: str = "ego-exo",
         device: torch.device = torch.device("cpu"),
+        use_nuscene_context: bool = False,
     ) -> tuple[
         Int64[Tensor, " context_view"],  # indices for context views
         Int64[Tensor, " target_view"],  # indices for target views
@@ -95,8 +96,49 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                                                                 replace=False)).to(dtype=torch.int64) 
 
             else: raise KeyError("Called dataset with wrong stage argument ... ")
-        elif experiment == "ego-exo":
+        
+        elif experiment == "ego-exo-mixed-domain":
+            print(f"[DEBUG VIEW SAMPLER] use_nuscene_context: {use_nuscene_context}, extrinsics_context shape: {extrinsics_context.shape}")
+            
+            if use_nuscene_context and extrinsics_context.shape[0] > 6: 
+                ### Use 5 SEED4D + 1 nuScenes every 10th scene###
+                #seed4d_indices = list(range(6))
+                #replace_position = random.randint(0, 5)
+                #nuscene_start_idx = 6
+                #nuscene_idx = nuscene_start_idx + replace_position
+                #seed4d_indices[replace_position] = nuscene_idx
+                #print(f"[NUSCENES MIX] Using mixed context: SEED4D indices {[i for i in seed4d_indices if i < 6]} + nuScenes index {nuscene_idx} at position {replace_position}")
 
+                ### Use 6 nuScenes every 10th scene###
+                seed4d_indices = [6,7,8,9,10,11]
+                print(f"[NUSCENES ONLY] Using NUSCENES-only context")
+
+                index_context = torch.tensor(seed4d_indices, dtype=torch.int64, device=device)
+                
+            else:
+                # Use only SEED4D
+                if self.cfg.num_context_views <= 6:
+                    index_context = torch.arange(0, self.cfg.num_context_views, 
+                                                dtype=torch.int64, device=device)
+                else:
+                    index_context = torch.arange(0, 6, dtype=torch.int64, device=device)
+                print(f"[SEED4D ONLY] Using SEED4D-only context")
+    # ===========================================================================
+            
+            if self.stage=='test' or self.stage=='val':
+                # If the (hardcoded) target views are not None, then use them  
+                if self.cfg.target_views is not None:
+                    assert len(self.cfg.target_views) == self.cfg.num_target_views
+                    index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
+                # If not, then randomly select them
+                else:
+                    assert self.cfg.num_target_views<=20 
+                    index_target = torch.from_numpy(np.random.choice(np.arange(0, 98), size=self.cfg.num_target_views, #-> 18 Nuscene views taken out here for testing
+                                                                    replace=False)).to(dtype=torch.int64) 
+            elif self.stage == 'train': #80 sphere target views + 3*6 SEED4D ego views + 18 Nuscene ego views = 116   
+                index_target = torch.from_numpy(np.random.choice(np.arange(0, 98), size=self.cfg.num_target_views, #-> 18 Nuscene views taken out here for testing
+                                                                replace=False)).to(dtype=torch.int64)
+        elif experiment == "ego-exo":
             if self.stage=='test' or self.stage=='val':
                 # If the (hardcoded) target views are not None, then use them  
                 if self.cfg.target_views is not None:
@@ -116,7 +158,9 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                 index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
             else:
                 ### no randomization for ego-ego testing for better visual comaprison of the images
-                index_target = torch.tensor([0,1,2,3,4,5])
+                #index_target = torch.tensor([0,1,2,3,4,5])
+                index_target = torch.tensor([0,1,2,3,5,6])
+        else: raise KeyError("Called dataset with wrong experiment argument ... ")
 
         return index_context, index_target
     
