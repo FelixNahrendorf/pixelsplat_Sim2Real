@@ -429,8 +429,11 @@ class ModelWrapper(LightningModule):
         rgb_gt = batch["target"]["image"][0]
         depth_gt = batch["target"]["depth"][0]
         
-        # Get reference (context) images
+        # ============ MODIFIED: Get the ACTUAL context images used (not just indices) ============
+        # The batch["context"]["image"] already contains the correctly selected context images
+        # because the view sampler has already filtered them via index_context
         reference_images = batch["context"]["image"][0]
+        # ==========================================================================================
 
         # Lists to store images for concatenation
         saved_reference_images = []
@@ -445,12 +448,6 @@ class ModelWrapper(LightningModule):
                 save_image(color, path / scene / f"color/{index:0>6}.png")
                 saved_color_images.append(color)
             
-            # COMMENTED OUT: Original depth image generation
-            # # Save rendered depth images
-            # for index, depth_map in zip(batch["target"]["index"][0], depth_prop):
-            #     save_image(depth_map.squeeze(0)/60, path / scene / f"depth/{index:0>6}.png")
-            #     saved_depth_images.append(depth_map.squeeze(0)/60)
-            
             # NEW: Save rendered depth images with inferno colormap
             for index, depth_map in zip(batch["target"]["index"][0], depth_prop):
                 # Apply inferno colormap to depth
@@ -458,10 +455,12 @@ class ModelWrapper(LightningModule):
                 save_image(depth_inferno, path / scene / f"depth/{index:0>6}.png")
                 saved_depth_images.append(depth_inferno)
             
-            # Save reference (context) images
-            for index, reference_img in zip(batch["context"]["index"][0], reference_images):
-                save_image(reference_img, path / scene / f"reference/{index:0>6}.png")
+            # ============ MODIFIED: Save reference images with correct indexing ============
+            # Save ALL reference images that were actually used (already filtered by view sampler)
+            for ref_idx, reference_img in enumerate(reference_images):
+                save_image(reference_img, path / scene / f"reference/{ref_idx:0>6}.png")
                 saved_reference_images.append(reference_img)
+            # ================================================================================
             
             # Save target (ground truth) images
             for index, target_img in zip(batch["target"]["index"][0], rgb_gt):
