@@ -39,7 +39,7 @@ from pyquaternion.quaternion import Quaternion
 from .nuscene_reader import desired_sensor_names, CameraInfo
 # =======================================
 
-SEED4D_DATASET_ROOT = '/app/inputs/seed4d/data/data_diverse/static/'  #'/app/inputs/seed4d/data/data_baseline/static/' 
+SEED4D_DATASET_ROOT = '/app/inputs/seed4d/data/data_diverse/static/'  #'/app/inputs/seed4d/data/data_baseline/static/' #'/app/inputs/seed4d/data/data_diverse/static/'  
 assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
 
 LIDAR_DATASET_ROOT = '/app/new/seed4d/pseudo_lidar/' # Will be directory to save pseudo lidar 
@@ -80,6 +80,7 @@ class Dataset_SEED4D(Dataset):
         self.stage = stage
         self.view_sampler = view_sampler
         self.to_tensor = tf.ToTensor()
+        self.nuscene_token_per_example = {}
         
         # Configure sensor selection
         self.sensor_indices = self._configure_sensor_selection()
@@ -365,6 +366,7 @@ class Dataset_SEED4D(Dataset):
                 # Load nuScenes frames for ALL stages (train/val/test)
                 if len(self.nuscene_samples) > 0:
                     nuscene_sample_token = random.choice(self.nuscene_samples)
+                    self.nuscene_token_per_example[example_id] = nuscene_sample_token
                     print(f"[DEBUG LOAD_INPUT] Selected nuScenes token: {nuscene_sample_token}")
                     
                     nuscene_frame_data = self._load_nuscene_frame_data(nuscene_sample_token)
@@ -498,7 +500,11 @@ class Dataset_SEED4D(Dataset):
                     # ============ ADDED: Load nuScenes images ============
                     # Randomly sample a nuScenes frame
                     if len(self.nuscene_samples) > 0:
-                        nuscene_sample_token = random.choice(self.nuscene_samples)
+                        if example_id in self.nuscene_token_per_example:
+                            nuscene_sample_token = self.nuscene_token_per_example[example_id]
+                        else:
+                            nuscene_sample_token = random.choice(self.nuscene_samples)
+                            self.nuscene_token_per_example[example_id] = nuscene_sample_token
                         nuscene_frame_data = self._load_nuscene_frame_data(nuscene_sample_token)
                         
                         # Filter nuScenes data using selected sensor indices
@@ -509,15 +515,12 @@ class Dataset_SEED4D(Dataset):
                         
                         print(f"Stage {self.stage}: Loading {len(filtered_nuscene_data)} nuScenes target views")
                         
-                        # Store filtered nuScenes data (repeat 3 times like SEED4D ego data)
-                        nuscene_count = 0
-                        for _ in range(3):
-                            for frame_data in filtered_nuscene_data:
-                                self.all_texture_target[example_id].append(frame_data['image_path'])
-                                self.intrinsics_target[example_id].append(frame_data['intrinsic'])
-                                self.extrinsics_target[example_id].append(frame_data['extrinsic'])
-                                nuscene_count += 1
-                        print(f"[DEBUG] Added {nuscene_count} nuScenes images to target views")
+                        # Store filtered nuScenes data
+                        for frame_data in filtered_nuscene_data:
+                            self.all_texture_target[example_id].append(frame_data['image_path'])
+                            self.intrinsics_target[example_id].append(frame_data['intrinsic'])
+                            self.extrinsics_target[example_id].append(frame_data['extrinsic'])
+
                         print(f"[DEBUG] Total target views: {len(self.all_texture_target[example_id])}")
             
                     # =====================================================
