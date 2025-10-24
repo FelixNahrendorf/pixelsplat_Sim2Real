@@ -102,18 +102,39 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
             
             if use_nuscene_context and extrinsics_context.shape[0] > 6: 
                 ### Use 5 SEED4D + 1 nuScenes every 10th scene###
-                #seed4d_indices = list(range(6))
+                #nuscene_indices = list(range(6))
                 #replace_position = random.randint(0, 5)
                 #nuscene_start_idx = 6
                 #nuscene_idx = nuscene_start_idx + replace_position
-                #seed4d_indices[replace_position] = nuscene_idx
-                #print(f"[NUSCENES MIX] Using mixed context: SEED4D indices {[i for i in seed4d_indices if i < 6]} + nuScenes index {nuscene_idx} at position {replace_position}")
+                #nuscene_indices[replace_position] = nuscene_idx
+                #print(f"[NUSCENES MIX] Using mixed context: SEED4D indices {[i for i in nuscene_indices if i < 6]} + nuScenes index {nuscene_idx} at position {replace_position}")
 
-                ### Use 6 nuScenes every 10th scene###
-                seed4d_indices = [6,7,8,9,10,11]
-                print(f"[NUSCENES ONLY] Using NUSCENES-only context")
+                ### Use 6 nuScenes every 10th scene for context and target###
+                nuscene_indices = [6,7,8,9,10,11]
+                print(f"[NUSCENES ONLY] Using NUSCENES-only context", "index_context", index_context)
+                index_context = torch.tensor(nuscene_indices, dtype=torch.int64, device=device)
 
-                index_context = torch.tensor(seed4d_indices, dtype=torch.int64, device=device)
+                nuscene_target_indices = [98,99,100,101,102,103]
+                index_target = torch.tensor(nuscene_target_indices, dtype=torch.int64, device=device) 
+                print(f"[NUSCENES ONLY] Using NUSCENES-only target", "index_target", index_target )
+
+                if self.stage=='test' or self.stage=='val':
+                    # If the (hardcoded) target views are not None, then use them  
+                    if self.cfg.target_views is not None:
+                        assert len(self.cfg.target_views) == self.cfg.num_target_views
+                        index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
+                    else:
+                        assert self.cfg.num_target_views <= 20 
+                        nuscene_target_indices = [99, 100, 101, 102, 103, 104]
+                        #index_target = torch.from_numpy(
+                        #    np.array(nuscene_target_indices[:self.cfg.num_target_views])).to(dtype=torch.int64, device=device)
+                        index_target = torch.tensor(nuscene_target_indices, dtype=torch.int64, device=device) 
+                        
+                elif self.stage == 'train':  
+                    nuscene_target_indices = [99, 100, 101, 102, 103, 104]
+                    # This is correct - already uses num_target_views
+                    index_target = torch.from_numpy(
+                        np.random.choice(nuscene_target_indices, size=self.cfg.num_target_views, replace=False)).to(dtype=torch.int64, device=device)
                 
             else:
                 # Use only SEED4D
@@ -123,21 +144,23 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                 else:
                     index_context = torch.arange(0, 6, dtype=torch.int64, device=device)
                 print(f"[SEED4D ONLY] Using SEED4D-only context")
-    # ===========================================================================
-            
-            if self.stage=='test' or self.stage=='val':
-                # If the (hardcoded) target views are not None, then use them  
-                if self.cfg.target_views is not None:
-                    assert len(self.cfg.target_views) == self.cfg.num_target_views
-                    index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
-                # If not, then randomly select them
-                else:
-                    assert self.cfg.num_target_views<=20 
-                    index_target = torch.from_numpy(np.random.choice(np.arange(0, 98), size=self.cfg.num_target_views, #-> 18 Nuscene views taken out here for testing
-                                                                    replace=False)).to(dtype=torch.int64) 
-            elif self.stage == 'train': #80 sphere target views + 3*6 SEED4D ego views + 18 Nuscene ego views = 116   
-                index_target = torch.from_numpy(np.random.choice(np.arange(0, 98), size=self.cfg.num_target_views, #-> 18 Nuscene views taken out here for testing
-                                                                replace=False)).to(dtype=torch.int64)
+                
+                # Sample target indices only for SEED4D (not nuScenes)
+                if self.stage=='test' or self.stage=='val':
+                    # If the (hardcoded) target views are not None, then use them  
+                    if self.cfg.target_views is not None:
+                        assert len(self.cfg.target_views) == self.cfg.num_target_views
+                        index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
+                    # If not, then randomly select them
+                    else:
+                        assert self.cfg.num_target_views<=20 
+                        index_target = torch.from_numpy(np.random.choice(np.arange(0, 98), size=self.cfg.num_target_views, 
+                                                                        replace=False)).to(dtype=torch.int64) 
+                elif self.stage == 'train': #80 sphere target views + 3*6 SEED4D ego views = 98 
+                    index_target = torch.from_numpy(np.random.choice(np.arange(0, 98), size=self.cfg.num_target_views, 
+                                                                    replace=False)).to(dtype=torch.int64)
+                # ======================================================================
+                    
         elif experiment == "ego-exo":
             if self.stage=='test' or self.stage=='val':
                 # If the (hardcoded) target views are not None, then use them  
