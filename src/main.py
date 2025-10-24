@@ -63,7 +63,7 @@ def train(cfg_dict: DictConfig):
             mode=cfg_dict.wandb.mode,
             name=f"{cfg_dict.wandb.name} ({output_dir.parent.name}/{output_dir.name})",
             tags=cfg_dict.wandb.get("tags", None),
-            log_model="all",
+            log_model=False, #"all", #outcommted to stop uploading the checkpoint online
             save_dir=output_dir,
             config=OmegaConf.to_container(cfg_dict),
         )
