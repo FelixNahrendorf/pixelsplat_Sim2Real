@@ -67,7 +67,19 @@ class ViewSampler_NUSCENE(ViewSampler[ViewSampler_NUSCENECfg]):
         index_target = torch.from_numpy(np.random.choice(np.arange(0, self.target_view_count), 
                                         size=self.cfg.num_target_views, replace=False)).to(dtype=torch.int64)
         if stage == "test":
+            #modification: mod_1
+            #nuscene_indices = [1,2,3,4,5,0]
+            #index_context = torch.tensor(nuscene_indices, dtype=torch.int64, device=device)
+            #index_target = torch.tensor(nuscene_indices, dtype=torch.int64, device=device) 
+
             index_target = torch.arange(0, max_target_views, dtype=torch.int64, device=device)
+
+            #new test_mod_2
+            #nuscene_indices = [1,2,3,4,5,5]
+            #index_context = torch.tensor(nuscene_indices, dtype=torch.int64, device=device)
+            #index_target = torch.tensor(nuscene_indices, dtype=torch.int64, device=device)
+            
+
         return index_context, index_target, self.reference_frame, self.target_frame
     
     @property
