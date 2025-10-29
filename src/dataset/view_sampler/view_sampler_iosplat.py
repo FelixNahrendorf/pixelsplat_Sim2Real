@@ -125,10 +125,16 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                         index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
                     else:
                         assert self.cfg.num_target_views <= 20 
-                        nuscene_target_indices = [99, 100, 101, 102, 103, 104]
-                        #index_target = torch.from_numpy(
-                        #    np.array(nuscene_target_indices[:self.cfg.num_target_views])).to(dtype=torch.int64, device=device)
-                        index_target = torch.tensor(nuscene_target_indices, dtype=torch.int64, device=device) 
+                        
+                        #how training was until 27.10.2025:
+                        #nuscene_target_indices = [99, 100, 101, 102, 103, 104]
+                        #index_target = torch.tensor(nuscene_target_indices, dtype=torch.int64, device=device) 
+
+                        #new test
+                        nuscene_indices = [7,8,9,10,11,11]
+                        index_context = torch.tensor(nuscene_indices, dtype=torch.int64, device=device)
+                        index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
+                                                                    replace=False)).to(dtype=torch.int64)
                         
                 elif self.stage == 'train':  
                     nuscene_target_indices = [99, 100, 101, 102, 103, 104]
@@ -170,7 +176,7 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                 else:
                     assert self.cfg.num_target_views<=20 
                     index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
-                                                                    replace=False)).to(dtype=torch.int64)
+                                                                    replace=False)).to(dtype=torch.int64) #choice=nop.arange(0, 20), For test/val stages, you typically want deterministic/reproducible results, not random sampling
             elif self.stage == 'train':
                 index_target = torch.from_numpy(np.random.choice(np.arange(0, 80), size=self.cfg.num_target_views, 
                                                                 replace=False, p=target_sample_weight)).to(dtype=torch.int64) 
@@ -182,7 +188,7 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
             else:
                 ### no randomization for ego-ego testing for better visual comaprison of the images
                 #index_target = torch.tensor([0,1,2,3,4,5])
-                index_target = torch.tensor([0,1,2,3,5,6])
+                index_target = torch.tensor([0,1,2,3,4,5])
         else: raise KeyError("Called dataset with wrong experiment argument ... ")
 
         return index_context, index_target
