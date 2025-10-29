@@ -1,12 +1,12 @@
 defaults:
   #- dataset: nuscene_ego_exo
-  #- dataset: nuscene #nuscene
+  - dataset: nuscene #nuscene
   #- dataset: carla #carla
-  - dataset: seed4d #seed4d
+  #- dataset: seed4d #seed4d
   - model/encoder: epipolar
   - model/decoder: splatting_cuda
-  #- loss: [mse, lpips] #nuscene
-  - loss: [mse, mae] #seed4d/carla
+  - loss: [mse, lpips] #nuscene
+  #- loss: [mse, mae] #seed4d/carla
 
 wandb:
   project: pixelsplat_diverse_training #nuscene-alike-dataset 
@@ -19,10 +19,6 @@ wandb:
   mode: online
 
 mode: test
-
-# GPU Configuration
-#gpu:
-#  device_id: 0  # value set here: 0,1,2,3 corresponds to physical GPU: 0,3,1,2 -> if you want to run on GPU 1, set this to 2
 
 dataset:
   overfit_to_scene: null
@@ -51,7 +47,7 @@ optimizer:
 
 checkpointing:
   #checkpoint for model trained on carla
-  #load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
+  load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
 
 
   #last checkpoint finetuned with ego-ego-seed4d
@@ -66,15 +62,32 @@ checkpointing:
   #checkpoint finetuned with mixed dataset 98cams
   #load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-11/11-46-09 98 cams/checkpoints/epoch=2296-step=500000.ckpt
 
+
+
 #initial checkpoint from here:
 #/mnt/share03/eyvaz/sshELF_Benchmarks/pixelsplat/outputs/2024-11-04/14-35-32/checkpoints
   #checkpoint for model trained on carla and then on nuscenes
   #load: /app/code/pixelsplat_Sim2Real/outputs/carla_nuScenes_ckpt_basis/2024-11-08/09-31-36/checkpoints/epoch=318-step=400000.ckpt 
 
+  #different fine tuned checkpoint from eyvaz, maybe this is the one to use
+  #load: /app/nuscenes_checkpoints/2024-11-07/15-37-46/checkpoints/epoch=318-step=400000.ckpt
 
 
-### ckpt Experiment 1 (Diverse Ego-Exo SEED4D): 	- Diverse dataset with all Towns generated, Trained pixelsplat with 128x128 px images ego-exo and ego-ego (mixed)
-  load: /app/code/pixelsplat_Sim2Real/outputs/2025-10-01/15-24-55/checkpoints/epoch=631-step=300000.ckpt
+
+### ckpt Experiment 1 (Diverse Ego-Exo SEED4D): 	- Diverse dataset with all Towns generated, Trained pixelsplat with 128x128 px images ego-exo
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-10-01/15-24-55/checkpoints/epoch=631-step=300000.ckpt
+
+### ckpt Experiment 2 (Diverse Mixed Ego-Exo/Ego-Ego SEED4D) - Diverse dataset with all Towns generated, Trained pixelsplat with 128x128 px images ego-exo and ego-ego
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-10-15/00-09-22/checkpoints/epoch=631-step=300000.ckpt
+
+###ckpt Experiment 3 Baseline (as initial but with 128x128)
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-10-17/11-26-47/checkpoints/epoch=1260-step=300000.ckpt
+
+###ckpt Experiment 4 (Baseline-Mixed)
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-10-16/20-59-25/checkpoints/epoch=1260-step=300000.ckpt
+
+#Experiment 5 Mixed domain training
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-10-25/22-23-19/checkpoints/epoch=1260-step=300000.ckpt
 
   every_n_train_steps: 20000
   save_top_k: -1
@@ -84,13 +97,13 @@ train:
   extended_visualization: false
 
 test:
-  #output_path: outputs/test/nuscenes_td2 #nuscene 
-  #output_path: /app/outputs/ego_exo_carla_on_carla_ckpt5_fix #carla
+  #output_path: /app/outputs/temporal_diff_td4_rend4
+  #output_path: /app/outputs/ego_ego_carla_on_nuscene_finetune
   #output_path: /app/outputs/ego-ego_seed4d_finetune_mixed_98cams #ego_exo_sensitivity_analysis/data_7cams_nuscene_adjusted
   #output_path: /app/outputs/ego-ego_nuscene_finetune_mixed_98cams_td1_1
-  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo_SEED4D-eval_ego-ego_Nuscene
+  ##output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscene_mod
   #output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td1_rend1_2
-  #output_path: /app/outputs/ego_exo_nuscene_on_nuscene_ckpt_fix #nuscene_ego_exo 
+  output_path: /app/outputs/ego_exo_nuscene_on_carla_new_depth #nuscene_ego_exo 
   #output_path: /app/outputs/nuscene_on_nuscene_ckpt_0shot_ego_exo #_td1_rend1_test
   #output_path: /app/outputs/ego_exo_nuscene_on_carla_ckpt_original_extrinsics_from_nuscene #nuscene_ego_exo
   compute_scores: false
