@@ -26,6 +26,8 @@ class BatchedExample(TypedDict, total=False):
     target: BatchedViews
     context: BatchedViews
     scene: list[str]
+    dataset_change: list[bool]
+
 
 
 class UnbatchedViews(TypedDict, total=False):
