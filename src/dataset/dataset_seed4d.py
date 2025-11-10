@@ -39,7 +39,7 @@ from pyquaternion.quaternion import Quaternion
 from .nuscene_reader import desired_sensor_names, CameraInfo
 # =======================================
 
-SEED4D_DATASET_ROOT = '/app/inputs/seed4d/data/data_diverse/static/'  #'/app/inputs/seed4d/data/data_baseline/static/' #'/app/inputs/seed4d/data/data_diverse/static/'  
+SEED4D_DATASET_ROOT = '/app/inputs/seed4d/data/data_diverse_1600x900_new/static/' #'/app/inputs/seed4d/data/data_baseline/static/' #'/app/inputs/seed4d/data/data_diverse/static/'  # #'/app/inputs/seed4d/data/data_diverse_1600x900/static/'  
 assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
 
 LIDAR_DATASET_ROOT = '/app/new/seed4d/pseudo_lidar/' # Will be directory to save pseudo lidar 
@@ -607,7 +607,7 @@ class Dataset_SEED4D(Dataset):
         index_context, index_target = self.view_sampler.sample("SEED", 
                                                                self.extrinsics_context[input_example_id], 
                                                                self.extrinsics_target[output_example_id],
-                                                               self.cfg.experiment,
+                                                               experiment=self.cfg.experiment,
                                                                use_nuscene_context=use_nuscene_for_this_sample)
         
         #######################################################################
@@ -619,6 +619,9 @@ class Dataset_SEED4D(Dataset):
         context_images = torch.stack(context_images).float()
         context_extrinsics = self.extrinsics_context[input_example_id][index_context.numpy()]
         context_intrinsics = self.intrinsics_context[input_example_id][index_context.numpy()]
+        #context_extrinsics = self.extrinsics_context[input_example_id][index_context.numpy()].clone()
+        #context_intrinsics = self.intrinsics_context[input_example_id][index_context.numpy()].clone()
+        
         
         #######################################################################
         ################ Loading Inference Target Information #################
@@ -663,6 +666,8 @@ class Dataset_SEED4D(Dataset):
         # Reading Camera params
         target_extrinsics = self.extrinsics_target[output_example_id][index_target.numpy()]
         target_intrinsics = self.intrinsics_target[output_example_id][index_target.numpy()]
+        #target_extrinsics = self.extrinsics_target[output_example_id][index_target.numpy()].clone()
+        #target_intrinsics = self.intrinsics_target[output_example_id][index_target.numpy()].clone()
         
         #######################################################################
         #######################################################################
@@ -686,7 +691,8 @@ class Dataset_SEED4D(Dataset):
                         "fov": self.get_bound("fov", len(index_target)),
                         "index": index_target,
                     },
-                    "scene": "Carla"}
+                    "scene": "Carla",
+                    "dataset_change": use_nuscene_for_this_sample}
 
 
         '''print("=== FINAL DATA FED TO MODEL ===")
