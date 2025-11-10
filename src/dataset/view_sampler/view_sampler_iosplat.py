@@ -57,12 +57,10 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
         #temperature → ∞: Uniform random sampling (ignores similarity entirely)
 
         if self.cfg.num_context_views<6:
-            Choice = [0, 1, 2, 3, 4, 5] #Choice = [0, 1, 5, 3, 4, 2]
+            Choice = [0, 1, 2, 3, 4, 5] 
             start = random.randint(0, len(Choice) - 1)
             index_context = torch.tensor(list(islice(cycle(Choice), start, start + self.cfg.num_context_views))).to(dtype=torch.int64)
         else:
-            #index_context = torch.from_numpy(np.array([0, 1, 5, 3, 4, 2])).to(dtype=torch.int64, device=device)
-            
             index_context = torch.from_numpy(np.array([0, 1, 2, 3, 4, 5])).to(dtype=torch.int64, device=device)
             
         # #
@@ -90,60 +88,41 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                 else:
                     assert self.cfg.num_target_views<=20 
                     index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
-                                                                    replace=False)).to(dtype=torch.int64) 
+                                                                    replace=False)).to(dtype=torch.int64) #this may be needed: .to(dtype=torch.int64, device=device) 
             elif self.stage == 'train':
                 index_target = torch.from_numpy(np.random.choice(np.arange(0, 98), size=self.cfg.num_target_views, 
-                                                                replace=False)).to(dtype=torch.int64) 
+                                                                replace=False)).to(dtype=torch.int64) #this may be needed: .to(dtype=torch.int64, device=device) 
 
             else: raise KeyError("Called dataset with wrong stage argument ... ")
         
         elif experiment == "ego-exo-mixed-domain":
-            print(f"[DEBUG VIEW SAMPLER] use_nuscene_context: {use_nuscene_context}, extrinsics_context shape: {extrinsics_context.shape}")
-            
-            if use_nuscene_context and extrinsics_context.shape[0] > 6: 
-                ### Use 5 SEED4D + 1 nuScenes every 10th scene###
-                #nuscene_indices = list(range(6))
-                #replace_position = random.randint(0, 5)
-                #nuscene_start_idx = 6
-                #nuscene_idx = nuscene_start_idx + replace_position
-                #nuscene_indices[replace_position] = nuscene_idx
-                #print(f"[NUSCENES MIX] Using mixed context: SEED4D indices {[i for i in nuscene_indices if i < 6]} + nuScenes index {nuscene_idx} at position {replace_position}")
 
-                ### Use 6 nuScenes every 10th scene for context and target###
-                nuscene_indices = [6,7,8,9,10,11]
-                print(f"[NUSCENES ONLY] Using NUSCENES-only context", "index_context", index_context)
-                index_context = torch.tensor(nuscene_indices, dtype=torch.int64, device=device)
+            nuscene_context_indices = [6,7,8,9,10,11]
+            nuscene_target_indices = [98,99,100,101,102,103]
 
-                nuscene_target_indices = [98,99,100,101,102,103]
-                index_target = torch.tensor(nuscene_target_indices, dtype=torch.int64, device=device) 
-                print(f"[NUSCENES ONLY] Using NUSCENES-only target", "index_target", index_target )
+            if use_nuscene_context:
+                ### Use 6 nuScene views every 10th scene for context and target###
+                index_context = torch.tensor(nuscene_context_indices, dtype=torch.int64, device=device)
 
                 if self.stage=='test' or self.stage=='val':
                     # If the (hardcoded) target views are not None, then use them  
                     if self.cfg.target_views is not None:
                         assert len(self.cfg.target_views) == self.cfg.num_target_views
                         index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
+                    # If not, then randomly select them
                     else:
-                        assert self.cfg.num_target_views <= 20 
-                        
-                        #how training was until 27.10.2025:
-                        #nuscene_target_indices = [99, 100, 101, 102, 103, 104]
-                        #index_target = torch.tensor(nuscene_target_indices, dtype=torch.int64, device=device) 
+                        #assert self.cfg.num_target_views<=20 
+                        #index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
+                        #                                                replace=False)).to(dtype=torch.int64) #this may be needed: .to(dtype=torch.int64, device=device)
+                        nuscene_target_indices_extended = (nuscene_target_indices * 3)[:18] + random.choices(nuscene_target_indices, k=2)
+                        index_target = torch.tensor(nuscene_target_indices_extended, dtype=torch.int64, device=device)
 
-                        #new test
-                        nuscene_indices = [7,8,9,10,11,11]
-                        index_context = torch.tensor(nuscene_indices, dtype=torch.int64, device=device)
-                        index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
-                                                                    replace=False)).to(dtype=torch.int64)
-                        
-                elif self.stage == 'train':  
-                    nuscene_target_indices = [99, 100, 101, 102, 103, 104]
-                    # This is correct - already uses num_target_views
-                    index_target = torch.from_numpy(
-                        np.random.choice(nuscene_target_indices, size=self.cfg.num_target_views, replace=False)).to(dtype=torch.int64, device=device)
-                
+                elif self.stage == 'train':
+                    index_target = torch.from_numpy(np.random.choice(nuscene_target_indices, size=self.cfg.num_target_views, 
+                                                                    replace=False)).to(dtype=torch.int64, device=device)
+  
             else:
-                # Use only SEED4D
+                ### Use SEED4D views only
                 if self.cfg.num_context_views <= 6:
                     index_context = torch.arange(0, self.cfg.num_context_views, 
                                                 dtype=torch.int64, device=device)
@@ -151,7 +130,7 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                     index_context = torch.arange(0, 6, dtype=torch.int64, device=device)
                 print(f"[SEED4D ONLY] Using SEED4D-only context")
                 
-                # Sample target indices only for SEED4D (not nuScenes)
+                # Sample target indices only for SEED4D 
                 if self.stage=='test' or self.stage=='val':
                     # If the (hardcoded) target views are not None, then use them  
                     if self.cfg.target_views is not None:
@@ -160,11 +139,11 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                     # If not, then randomly select them
                     else:
                         assert self.cfg.num_target_views<=20 
-                        index_target = torch.from_numpy(np.random.choice(np.arange(0, 98), size=self.cfg.num_target_views, 
-                                                                        replace=False)).to(dtype=torch.int64) 
+                        index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
+                                                                        replace=False)).to(dtype=torch.int64, device=device) 
                 elif self.stage == 'train': #80 sphere target views + 3*6 SEED4D ego views = 98 
                     index_target = torch.from_numpy(np.random.choice(np.arange(0, 98), size=self.cfg.num_target_views, 
-                                                                    replace=False)).to(dtype=torch.int64)
+                                                                    replace=False)).to(dtype=torch.int64, device=device)
                 # ======================================================================
                     
         elif experiment == "ego-exo":
@@ -187,7 +166,6 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                 index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
             else:
                 ### no randomization for ego-ego testing for better visual comaprison of the images
-                #index_target = torch.tensor([0,1,2,3,4,5])
                 index_target = torch.tensor([0,1,2,3,4,5])
         else: raise KeyError("Called dataset with wrong experiment argument ... ")
 
