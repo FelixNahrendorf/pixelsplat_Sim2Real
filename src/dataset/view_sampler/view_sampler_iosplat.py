@@ -145,6 +145,31 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                     index_target = torch.from_numpy(np.random.choice(np.arange(0, 98), size=self.cfg.num_target_views, 
                                                                     replace=False)).to(dtype=torch.int64, device=device)
                 # ======================================================================
+        elif experiment == "ego-ego-nuscenes":
+
+            nuscene_context_indices = [6,7,8,9,10,11]
+            nuscene_target_indices = [98,99,100,101,102,103]
+
+            if use_nuscene_context:
+                ### Use 6 nuScene views every scene for context and target###
+                index_context = torch.tensor(nuscene_context_indices, dtype=torch.int64, device=device)
+
+                if self.stage=='test' or self.stage=='val':
+                    # If the (hardcoded) target views are not None, then use them  
+                    if self.cfg.target_views is not None:
+                        assert len(self.cfg.target_views) == self.cfg.num_target_views
+                        index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
+                    # If not, then randomly select them
+                    else:
+                        #assert self.cfg.num_target_views<=20 
+                        #index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
+                        #                                                replace=False)).to(dtype=torch.int64) #this may be needed: .to(dtype=torch.int64, device=device)
+                        #nuscene_target_indices_extended = (nuscene_target_indices * 3)[:18] + random.choices(nuscene_target_indices, k=2)
+                        index_target = torch.tensor(nuscene_target_indices, dtype=torch.int64, device=device)
+
+                elif self.stage == 'train':
+                    index_target = torch.from_numpy(np.random.choice(nuscene_target_indices, size=self.cfg.num_target_views, 
+                                                                    replace=False)).to(dtype=torch.int64, device=device)
                     
         elif experiment == "ego-exo":
             if self.stage=='test' or self.stage=='val':
