@@ -170,6 +170,24 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                 elif self.stage == 'train':
                     index_target = torch.from_numpy(np.random.choice(nuscene_target_indices, size=self.cfg.num_target_views, 
                                                                     replace=False)).to(dtype=torch.int64, device=device)
+        elif experiment == "ego-exo-nuscenes":
+
+            nuscene_context_indices = [6,7,8,9,10,11]
+                # Sample target indices only for SEED4D 
+            if self.stage=='test' or self.stage=='val':
+                # If the (hardcoded) target views are not None, then use them  
+                if self.cfg.target_views is not None:
+                    assert len(self.cfg.target_views) == self.cfg.num_target_views
+                    index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
+                # If not, then randomly select them
+                else:
+                    assert self.cfg.num_target_views<=20 
+                    index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
+                                                                    replace=False)).to(dtype=torch.int64, device=device) 
+            elif self.stage == 'train': #80 sphere target views 
+                index_target = torch.from_numpy(np.random.choice(np.arange(0, 80), size=self.cfg.num_target_views, 
+                                                                replace=False)).to(dtype=torch.int64, device=device)
+            # ======================================================================
                     
         elif experiment == "ego-exo":
             if self.stage=='test' or self.stage=='val':
