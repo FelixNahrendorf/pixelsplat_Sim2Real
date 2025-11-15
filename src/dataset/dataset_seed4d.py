@@ -172,8 +172,12 @@ class Dataset_SEED4D(Dataset):
             if self.cfg.experiment == 'ego-exo-mixed-domain':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
                 self.output_images = self.spawn_dirs 
-            ### ego-go-nuscenes testing
+            ### ego-ego-nuscenes testing
             if self.cfg.experiment == 'ego-ego-nuscenes':
+                self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+                self.output_images = self.spawn_dirs
+            ### ego-exo-nuscenes testing
+            if self.cfg.experiment == 'ego-exo-nuscenes':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
                 self.output_images = self.spawn_dirs
             
@@ -315,7 +319,10 @@ class Dataset_SEED4D(Dataset):
 
     def get_output_example_id(self, index):
         """Get example_id for output/target data"""
-        if self.cfg.experiment == 'ego-exo-mixed' or self.cfg.experiment == 'ego-exo-mixed-domain' or self.cfg.experiment == 'ego-ego-nuscenes':
+        if self.cfg.experiment in ('ego-exo-mixed', 
+                           'ego-exo-mixed-domain',
+                           'ego-ego-nuscenes', 
+                           'ego-exo-nuscenes'):
             example_id = self.output_spawns[index]
         elif self.cfg.experiment == 'ego-exo' or self.cfg.experiment == 'ego-ego':
             output_path = self.output_spawns[index]
@@ -363,7 +370,9 @@ class Dataset_SEED4D(Dataset):
             # ===========================================================
             
             # ============ MODIFIED: Load nuScenes context images for ego-exo-mixed-domain ============
-            if self.cfg.experiment == 'ego-exo-mixed-domain' or self.cfg.experiment == 'ego-ego-nuscenes':
+            if self.cfg.experiment in ('ego-exo-mixed-domain', 
+                           'ego-ego-nuscenes', 
+                           'ego-exo-nuscenes'):
                 print(f"[DEBUG LOAD_INPUT] Attempting to load nuScenes for ego-exo-mixed-domain")
                 print(f"[DEBUG LOAD_INPUT] Available nuScenes samples: {len(self.nuscene_samples)}")
                 
@@ -462,7 +471,9 @@ class Dataset_SEED4D(Dataset):
                             self.intrinsics_target[example_id].append(intrins)
                             self.extrinsics_target[example_id].append(extrins)
 
-                elif self.cfg.experiment == 'ego-exo-mixed-domain' or self.cfg.experiment == 'ego-ego-nuscenes':
+                elif self.cfg.experiment in ('ego-exo-mixed-domain', 
+                           'ego-ego-nuscenes', 
+                           'ego-exo-nuscenes'):
                     # Load exo views (sphere_invisible)
                     print(f"[DEBUG] Loading ego-exo-mixed-domain data for {example_id}")
                     print(f"[DEBUG] Stage: {self.stage}")
@@ -605,7 +616,7 @@ class Dataset_SEED4D(Dataset):
         input_example_id = self.get_input_example_id(index)
         output_example_id = self.get_output_example_id(index)
 
-        if self.cfg.experiment == 'ego-ego-nuscenes':
+        if self.cfg.experiment == 'ego-ego-nuscenes' or self.cfg.experiment == 'ego-exo-nuscenes':
             use_nuscene_for_this_sample = True
         else:
             use_nuscene_for_this_sample = (index % 10 == 0)
@@ -651,12 +662,12 @@ class Dataset_SEED4D(Dataset):
                          for image_path in np.array(self.all_texture_target[output_example_id])[index_target.numpy()]]
         target_images = torch.stack(target_images).float()
         # Reading depth maps
-        if self.cfg.experiment != 'ego-exo-mixed-domain' and self.cfg.experiment != 'ego-ego-nuscenes':
+        if self.cfg.experiment != 'ego-exo-mixed-domain' and self.cfg.experiment != 'ego-ego-nuscenes' and self.cfg.experiment !='ego-exo-nuscenes':
             target_depths = [depth_path_to_Torch(image_path[:image_path.rfind('_')] + "_depth.png", self.target_resolution)
                          for image_path in np.array(self.all_texture_target[output_example_id])[index_target.numpy()]]
             target_depths = torch.stack(target_depths).float()
         else:
-            # For ego-exo-mixed-domain, handle missing depth maps (nuScenes)
+            # For ego-exo-mixed-domain,ego-ego-nuscenes, ego-exo-nuscenes handle missing depth maps (nuScenes)
             target_depths = []
             for image_path in np.array(self.all_texture_target[output_example_id])[index_target.numpy()]:
                 depth_path = image_path[:image_path.rfind('_')] + "_depth.png"
