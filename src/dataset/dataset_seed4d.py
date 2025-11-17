@@ -618,8 +618,10 @@ class Dataset_SEED4D(Dataset):
 
         if self.cfg.experiment == 'ego-ego-nuscenes' or self.cfg.experiment == 'ego-exo-nuscenes':
             use_nuscene_for_this_sample = True
+        elif self.cfg.experiment == 'ego-exo-mixed-domain':
+            use_nuscene_for_this_sample = (index % 50 == 0)
         else:
-            use_nuscene_for_this_sample = (index % 10 == 0)
+            use_nuscene_for_this_sample = False
 
         
         # view sampler needs to know context and target view extrinsics for sampling strategy
