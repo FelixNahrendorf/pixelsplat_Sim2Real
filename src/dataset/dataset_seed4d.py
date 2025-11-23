@@ -383,6 +383,7 @@ class Dataset_SEED4D(Dataset):
                     print(f"[DEBUG LOAD_INPUT] Selected nuScenes token: {nuscene_sample_token}")
                     
                     nuscene_frame_data = self._load_nuscene_frame_data(nuscene_sample_token)
+                    ####insert depth loading here 
                     
                     print(f"[DEBUG LOAD_INPUT] Stage {self.stage}: Loading {len(nuscene_frame_data)} nuScenes context views for example {example_id}")
                     if nuscene_frame_data:

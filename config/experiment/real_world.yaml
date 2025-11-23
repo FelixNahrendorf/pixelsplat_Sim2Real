@@ -11,12 +11,14 @@ wandb:
   tags: [seed, 256x256]
 
 dataset:
-  image_shape: [256, 256]
+  image_shape: [256, 256] #[128, 128] #
   roots: [dataset/nuscene]
+  training_towns: ['01','03','04','05','06','07', '10HD']  
+  testing_towns: ['02']
 
 data_loader:
   train:
-    batch_size: 1 # 7 
+    batch_size: 2 # 7 
 
 trainer:
-  max_steps: 400_001
+  max_steps: 300_001 #400_001

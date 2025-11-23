@@ -175,3 +175,11 @@ cython_debug/
 table.tex
 /baselines
 /test/*
+
+#archive of code samples
+
+/src/dataset/dataloader_archive
+
+#docker image
+/dev_docker/pixelsplat_sim2real.tar.gz
+/dev_docker/Docker_Build_HOLM_mod

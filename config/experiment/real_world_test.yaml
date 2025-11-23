@@ -8,23 +8,29 @@ defaults:
 
 wandb:
   name: nuscene
-  tags: [seed, 256x256]
+  tags: [seed, 128x128] #[256x256]
 
 dataset:
-  image_shape: [128, 128] #[64, 64] #[256, 256]
+  image_shape: [128, 128] #[64, 64] #
   roots: [dataset/nuscene]
   experiment: ego-ego #ego-exo-mixed #ego-ego 
+  training_towns: ['01','03','04','05','06','07', '10HD']  
+  testing_towns: ['02']
 
 data_loader:
   train:
-    batch_size: 1 # 7 
+    batch_size: 2 # 7 
 
 trainer:
-  max_steps: 400_001
+  max_steps: 300_001 #400_001
 
 test:
   depth_mode: depth
-  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo_SEED4D-eval_ego-ego_Nuscene
+  #output_path: /app/outputs/ego_exo_nuscene_on_carla_new_depth #/app/outputs/temporal_diff_td4_rend4   #pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscene_mod
+  
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-eval_ego-ego_Nuscene_new #1
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscene_new #2
+  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscene_new #3
   compute_scores: true
 
 
