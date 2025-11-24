@@ -17,7 +17,10 @@ def compute_depth_mse(
     valid_mask = torch.Tensor(rearrange(output_color, "b c h w -> b h w c") != background_color).to(dtype=float)
     valid_mask = rearrange(valid_mask.sum(-1)/3.0, "b h w -> b 1 h w")
     ground_truth = ground_truth.to(device=predicted.device)
-    mse_loss =  torch.nn.MSELoss(reduction='none')(predicted, ground_truth)
+    # Depth loss clipped to match ground truth range (0 to 65.535 meters)
+    predicted_depth_clipped = torch.clamp(predicted, min=0.0, max=65.535)
+    ground_truth_depth_clipped = torch.clamp(ground_truth, min=0.0, max=65.535)
+    mse_loss =  torch.nn.MSELoss(reduction='none')(predicted_depth_clipped, ground_truth_depth_clipped)
     # mse_loss = (mse_loss * valid_mask.float()).sum()
     return (mse_loss * valid_mask.float()).sum() / valid_mask.sum()
 

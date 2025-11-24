@@ -41,6 +41,10 @@ class LossMae(Loss[LossMaeCfg, LossMaeCfgWrapper]):
             print(f"[LOSS DEBUG] [Step {global_step}] ----------- Skipping depth loss for nuScenes -----------------")
             return torch.tensor(0.0, device=prediction.depth.device, dtype=prediction.depth.dtype)
 
-        # Normal depth loss for SEED4D
-        delta = prediction.depth - batch["target"]["depth"]
+        # Depth loss clipped to match ground truth range (0 to 65.535 meters)
+        predicted_depth_clipped = torch.clamp(prediction.depth, min=0.0, max=65.535)
+        target_depth_clipped = torch.clamp(batch["target"]["depth"], min=0.0, max=65.535)
+        delta = predicted_depth_clipped - target_depth_clipped
+        #delta = prediction.depth - batch["target"]["depth"] # Original line without clipping
+        
         return self.cfg.weight * torch.abs(delta).mean()
