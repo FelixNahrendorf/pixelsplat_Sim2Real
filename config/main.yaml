@@ -80,7 +80,7 @@ checkpointing:
 
 ### ckpt Experiment 2 (Diverse Mixed Ego-Exo/Ego-Ego SEED4D) - Diverse dataset with all Towns generated, Trained pixelsplat with 128x128 px images ego-exo and ego-ego
   #load: /app/code/pixelsplat_Sim2Real/outputs/2025-10-15/00-09-22/checkpoints/epoch=631-step=300000.ckpt
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-10/09-45-38/checkpoints/epoch=1260-step=300000.ckpt #2
+  load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-10/09-45-38/checkpoints/epoch=1260-step=300000.ckpt #2
 
 ###ckpt Experiment 3 Baseline (as initial but with 128x128)
   #load: /app/code/pixelsplat_Sim2Real/outputs/2025-10-17/11-26-47/checkpoints/epoch=1260-step=300000.ckpt
@@ -93,7 +93,7 @@ checkpointing:
   #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-10/15-23-00/checkpoints/epoch=1260-step=300000.ckpt #3
 
 #Experiment 5 Mixed domain training - only 2% Nuscene data
-  load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-17/16-01-47/checkpoints/epoch=1260-step=300000.ckpt
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-17/16-01-47/checkpoints/epoch=1260-step=300000.ckpt
 
   every_n_train_steps: 20000
   save_top_k: -1
@@ -114,8 +114,8 @@ test:
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_SEED4D_new #3
 
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-eval_ego-exo_Nuscene_new #1
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_Nuscene_new #2
-  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_2percent_Nus_seedloader #3
+  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_Nuscene_new_test_loader #2
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_2percent_Nus_seedloader #3
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-eval_ego-exo_Nuscene_new_check_setup_delete
 
   #output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td1_rend1_2

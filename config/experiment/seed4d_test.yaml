@@ -16,7 +16,7 @@ dataset:
   training_towns: ['01','03','04','05','06','07', '10HD']  # Configure training towns here #training_towns = ['01','03','04','05','06','07', '10HD']
   testing_towns: ['02']   # Configure testing towns here
   selected_sensors: [0, 1, 2, 3, 4, 5]  # List of sensor indices to use (0-6 based on transforms_ego.json)
-  experiment: ego-ego-nuscenes #xo-mixed-domain #ego-exo-mixed #ego-ego # ego-exo-nuscenes 
+  experiment: ego-exo-nuscenes #xo-mixed-domain #ego-exo-mixed #ego-ego # ego-exo-nuscenes 
 
 data_loader:
   train:
@@ -30,7 +30,8 @@ test:
 
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-eval_ego-exo_Nuscene_new_check_setup_delete #1
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_Nuscene_new #2
-  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_2percent_Nus_seedloader #3
+  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_Nuscene_new_test_loader #2
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_2percent_Nus_seedloader #3
   compute_scores: true
 
 
