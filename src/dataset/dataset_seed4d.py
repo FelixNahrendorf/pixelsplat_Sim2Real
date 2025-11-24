@@ -515,13 +515,18 @@ class Dataset_SEED4D(Dataset):
 
                     # ============ ADDED: Load nuScenes images ============
                     # Randomly sample a nuScenes frame
-                    if len(self.nuscene_samples) > 0:
+                    '''if len(self.nuscene_samples) > 0:
                         if example_id in self.nuscene_token_per_example:
                             nuscene_sample_token = self.nuscene_token_per_example[example_id]
                         else:
                             nuscene_sample_token = random.choice(self.nuscene_samples)
                             self.nuscene_token_per_example[example_id] = nuscene_sample_token
-                        nuscene_frame_data = self._load_nuscene_frame_data(nuscene_sample_token)
+                        nuscene_frame_data = self._load_nuscene_frame_data(nuscene_sample_token)'''
+
+                    if len(self.nuscene_samples) > 0:
+                        assert example_id in self.nuscene_token_per_example, \
+                            f"Token should exist for {example_id} - load_input_example_id should run first"
+                        nuscene_sample_token = self.nuscene_token_per_example[example_id]
                         
                         # Filter nuScenes data using selected sensor indices
                         filtered_nuscene_data = nuscene_frame_data #[nuscene_frame_data[i] for i in self.sensor_indices]
