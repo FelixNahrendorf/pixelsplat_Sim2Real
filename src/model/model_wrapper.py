@@ -190,8 +190,8 @@ class ModelWrapper(LightningModule):
 
         return total_loss
     
-    def create_concatenated_image(self, scene_path, reference_images, color_images, target_images, depth_images):
-        """Create a concatenated image with four horizontal rows stacked vertically."""
+    def create_concatenated_image(self, scene_path, reference_images, color_images, target_images, depth_images, target_depth_images):
+        """Create a concatenated image with five horizontal rows stacked vertically."""
         try:
             # Convert tensors to numpy arrays and ensure they're in the right format
             def tensor_to_image_array(tensor_list):
@@ -287,6 +287,7 @@ class ModelWrapper(LightningModule):
             print(f"Debug - Color images: {len(color_images)}")
             print(f"Debug - Target images: {len(target_images)}")
             print(f"Debug - Depth images: {len(depth_images)}")
+            print(f"Debug - Target depth images: {len(target_depth_images)}")
             
             if color_images:
                 sample_color = color_images[0]
@@ -298,11 +299,12 @@ class ModelWrapper(LightningModule):
             color_arrays = tensor_to_image_array(color_images)
             target_arrays = tensor_to_image_array(target_images)
             depth_arrays = tensor_to_image_array(depth_images)
+            target_depth_arrays = tensor_to_image_array(target_depth_images)
             
-            print(f"Debug - After conversion - ref: {len(ref_arrays)}, color: {len(color_arrays)}, target: {len(target_arrays)}, depth: {len(depth_arrays)}")
+            print(f"Debug - After conversion - ref: {len(ref_arrays)}, color: {len(color_arrays)}, target: {len(target_arrays)}, depth: {len(depth_arrays)}, target_depth: {len(target_depth_arrays)}")
             
             # Check if any arrays are empty
-            if not (ref_arrays or color_arrays or target_arrays or depth_arrays):
+            if not (ref_arrays or color_arrays or target_arrays or depth_arrays or target_depth_arrays):
                 print(f"Warning: All image arrays are empty for scene {scene_path}")
                 return
             
@@ -311,14 +313,15 @@ class ModelWrapper(LightningModule):
                 len(ref_arrays) if ref_arrays else 0,
                 len(color_arrays) if color_arrays else 0,
                 len(target_arrays) if target_arrays else 0,
-                len(depth_arrays) if depth_arrays else 0
+                len(depth_arrays) if depth_arrays else 0,
+                len(target_depth_arrays) if target_depth_arrays else 0
             )
             
             print(f"Debug - Max images: {max_images}")
             
             # Get dimensions - use the first available image from any array
             sample_img = None
-            for img_list, name in [(ref_arrays, "ref"), (color_arrays, "color"), (target_arrays, "target"), (depth_arrays, "depth")]:
+            for img_list, name in [(ref_arrays, "ref"), (color_arrays, "color"), (target_arrays, "target"), (depth_arrays, "depth"), (target_depth_arrays, "target_depth")]:
                 if img_list:
                     sample_img = img_list[0]
                     print(f"Debug - Using {name} for dimensions: {sample_img.shape}")
@@ -359,12 +362,15 @@ class ModelWrapper(LightningModule):
                 target_arrays = resize_images(target_arrays, target_h, target_w, "target")
             if depth_arrays:
                 depth_arrays = resize_images(depth_arrays, target_h, target_w, "depth")
+            if target_depth_arrays:
+                target_depth_arrays = resize_images(target_depth_arrays, target_h, target_w, "target_depth")
             
             # Ensure all arrays have the same number of images using FIXED padding
             ref_arrays = pad_image_list(ref_arrays, max_images, target_h, target_w, "reference")
             color_arrays = pad_image_list(color_arrays, max_images, target_h, target_w, "color")
             target_arrays = pad_image_list(target_arrays, max_images, target_h, target_w, "target")
             depth_arrays = pad_image_list(depth_arrays, max_images, target_h, target_w, "depth")
+            target_depth_arrays = pad_image_list(target_depth_arrays, max_images, target_h, target_w, "target_depth")
             
             # Create horizontal concatenations
             try:
@@ -372,11 +378,12 @@ class ModelWrapper(LightningModule):
                 color_row = np.concatenate(color_arrays, axis=1) if color_arrays else np.zeros((target_h, target_w, 3))
                 target_row = np.concatenate(target_arrays, axis=1) if target_arrays else np.zeros((target_h, target_w, 3))
                 depth_row = np.concatenate(depth_arrays, axis=1) if depth_arrays else np.zeros((target_h, target_w, 3))
+                target_depth_row = np.concatenate(target_depth_arrays, axis=1) if target_depth_arrays else np.zeros((target_h, target_w, 3))
                 
-                print(f"Debug - Row shapes: ref{ref_row.shape}, color{color_row.shape}, target{target_row.shape}, depth{depth_row.shape}")
+                print(f"Debug - Row shapes: ref{ref_row.shape}, color{color_row.shape}, target{target_row.shape}, depth{depth_row.shape}, target_depth{target_depth_row.shape}")
                 
-                # Stack vertically
-                final_image = np.concatenate([ref_row, color_row, target_row, depth_row], axis=0)
+                # Stack vertically: reference, color, target, depth (predicted), target_depth (ground truth)
+                final_image = np.concatenate([ref_row, color_row, target_row, depth_row, target_depth_row], axis=0)
                 
                 print(f"Debug - Final image shape: {final_image.shape}, range: [{final_image.min():.3f}, {final_image.max():.3f}]")
                 
@@ -440,6 +447,7 @@ class ModelWrapper(LightningModule):
         saved_color_images = []
         saved_target_images = []
         saved_depth_images = []
+        saved_target_depth_images = []
 
         # Save images.
         if self.test_cfg.save_image:
@@ -448,12 +456,19 @@ class ModelWrapper(LightningModule):
                 save_image(color, path / scene / f"color/{index:0>6}.png")
                 saved_color_images.append(color)
             
-            # NEW: Save rendered depth images with inferno colormap
+            # Save rendered depth images with inferno colormap
             for index, depth_map in zip(batch["target"]["index"][0], depth_prop):
                 # Apply inferno colormap to depth
                 depth_inferno = self.apply_inferno_colormap(depth_map.squeeze(0)/60)
                 save_image(depth_inferno, path / scene / f"depth/{index:0>6}.png")
                 saved_depth_images.append(depth_inferno)
+            
+            # Save ground truth depth images with inferno colormap
+            for index, gt_depth_map in zip(batch["target"]["index"][0], depth_gt):
+                # Apply inferno colormap to ground truth depth
+                gt_depth_inferno = self.apply_inferno_colormap(gt_depth_map.squeeze(0)/60)
+                save_image(gt_depth_inferno, path / scene / f"target_depth/{index:0>6}.png")
+                saved_target_depth_images.append(gt_depth_inferno)
             
             # ============ MODIFIED: Save reference images with correct indexing ============
             # Save ALL reference images that were actually used (already filtered by view sampler)
@@ -474,7 +489,8 @@ class ModelWrapper(LightningModule):
                 saved_reference_images,
                 saved_color_images, 
                 saved_target_images,
-                saved_depth_images
+                saved_depth_images,
+                saved_target_depth_images
             )
         
         # save video
@@ -792,7 +808,7 @@ class ModelWrapper(LightningModule):
         #     result = 1 - (result - near) / (far - near)
         #     return apply_color_map_to_image(result, "turbo")
 
-        # NEW: Depth mapping function using inferno colormap
+        # Depth mapping function using inferno colormap
         def depth_map(result):
             near = result[result > 0][:16_000_000].quantile(0.01).log()
             far = result.view(-1)[:16_000_000].quantile(0.99).log()
