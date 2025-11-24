@@ -1,6 +1,6 @@
 name: eval_carla_view
 
-num_target_views: 20 #6 #20 
+num_target_views: 6 #20 
 num_context_views: 6
 augment: false
 augment_p: 0.5

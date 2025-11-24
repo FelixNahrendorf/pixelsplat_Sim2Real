@@ -30,7 +30,8 @@ test:
   
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-eval_ego-ego_Nuscene_new #1
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscene_new #2
-  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscene_new #3
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscene_new #3
+  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_2percent_Nus_new
   compute_scores: true
 
 
