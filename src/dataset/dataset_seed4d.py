@@ -39,7 +39,7 @@ from pyquaternion.quaternion import Quaternion
 from .nuscene_reader import desired_sensor_names, CameraInfo
 # =======================================
 
-SEED4D_DATASET_ROOT = '/app/inputs/seed4d/data/data_diverse_1600x900_new/static/' #'/app/inputs/seed4d/data/data_baseline/static/' #'/app/inputs/seed4d/data/data_diverse/static/'  # #'/app/inputs/seed4d/data/data_diverse_1600x900/static/'  
+SEED4D_DATASET_ROOT = '/app/inputs/seed4d/data/data_diverse_1600x900_2poses/static/' #'/app/inputs/seed4d/data/data_baseline/static/' #'/app/inputs/seed4d/data/data_diverse/static/'  # #'/app/inputs/seed4d/data/data_diverse_1600x900/static/'  
 assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
 
 LIDAR_DATASET_ROOT = '/app/new/seed4d/pseudo_lidar/' # Will be directory to save pseudo lidar 
@@ -103,6 +103,39 @@ class Dataset_SEED4D(Dataset):
                     self.nuscene_samples.append(sample_token)
                     sample = self.nusc.get("sample", sample_token)
                     sample_token = sample["next"]
+        
+        # Filter out night scenes and outlier poses for domain adaptation
+        total_samples_before = len(self.nuscene_samples)
+        
+        # Load night sample tokens from appropriate file
+        if version == 'v1.0-trainval':
+            night_scenes_file = '/app/code/Sim2Real/domain_adaptation/nuscene_night_scenes_felix/nuscenes_v1.0-trainval_night_scenes.txt'
+        else:
+            night_scenes_file = '/app/code/Sim2Real/domain_adaptation/nuscene_night_scenes_felix/nuscenes_v1.0-test_night_scenes.txt'
+        
+        # Read night sample tokens
+        with open(night_scenes_file, 'r') as f:
+            night_sample_tokens = set(line.strip() for line in f if line.strip())
+        
+        # Load outlier pose tokens
+        outlier_poses_file = '/app/code/Sim2Real/camera_setup_comparison/nuscenes_camera_setup/nuscenes_15_outlier_poses.txt'
+        with open(outlier_poses_file, 'r') as f:
+            outlier_pose_tokens = set(line.strip() for line in f if line.strip())
+        
+        # Combine both filtering sets
+        tokens_to_filter = night_sample_tokens | outlier_pose_tokens
+        
+        # Filter samples by removing night sample tokens and outlier poses
+        self.nuscene_samples = [token for token in self.nuscene_samples if token not in tokens_to_filter]
+        
+        night_samples_count = len(night_sample_tokens & set(self.nuscene_samples + list(tokens_to_filter)))
+        outlier_samples_count = len(outlier_pose_tokens & set(self.nuscene_samples + list(tokens_to_filter)))
+        total_filtered = total_samples_before - len(self.nuscene_samples)
+        
+        print(f"Filtered out the night samples and outlier poses from the nuScenes dataset for domain adaptation: "
+              f"{total_samples_before} total scenes, {night_samples_count} night scenes, "
+              f"{outlier_samples_count} outlier poses, {total_filtered} total filtered, "
+              f"{len(self.nuscene_samples)} scenes left after filtering")
         # ====================================================
         
         data_dir_naming = '/ClearNoon/vehicle.audi.tt/'
@@ -528,6 +561,7 @@ class Dataset_SEED4D(Dataset):
                             f"Token should exist for {example_id} - load_input_example_id should run first"
                         nuscene_sample_token = self.nuscene_token_per_example[example_id]
                         
+                        nuscene_frame_data = self._load_nuscene_frame_data(nuscene_sample_token)
                         # Filter nuScenes data using selected sensor indices
                         filtered_nuscene_data = nuscene_frame_data #[nuscene_frame_data[i] for i in self.sensor_indices]
                         print(f"Stage {self.stage}: Loading {len(filtered_nuscene_data)} nuScenes target views")

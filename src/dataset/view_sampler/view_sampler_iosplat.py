@@ -158,7 +158,7 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                     index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
                 else:
                     index_target = torch.tensor(nuscene_target_indices, dtype=torch.int64, device=device)
-            elif self.stage == 'train':
+            elif self.stage == 'train': #is never used, but just in case
                 index_target = torch.from_numpy(np.random.choice(nuscene_target_indices, size=self.cfg.num_target_views, 
                                                                 replace=False)).to(dtype=torch.int64, device=device)
         elif experiment == "ego-exo-nuscenes":

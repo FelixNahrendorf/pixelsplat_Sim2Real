@@ -42,7 +42,7 @@ class LossMae(Loss[LossMaeCfg, LossMaeCfgWrapper]):
             return torch.tensor(0.0, device=prediction.depth.device, dtype=prediction.depth.dtype)
 
         # Depth loss clipped to match ground truth range (0 to 65.535 meters)
-        predicted_depth_clipped = torch.clamp(prediction.depth, min=0.0, max=65.535)
+        predicted_depth_clipped = torch.clamp(prediction.depth, min=0.0, max=65.535) #example depth=140 set to 65.535 max now to vaoid having big loss there
         target_depth_clipped = torch.clamp(batch["target"]["depth"], min=0.0, max=65.535)
         delta = predicted_depth_clipped - target_depth_clipped
         #delta = prediction.depth - batch["target"]["depth"] # Original line without clipping
