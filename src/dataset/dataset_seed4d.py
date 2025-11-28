@@ -718,12 +718,50 @@ class Dataset_SEED4D(Dataset):
                     # SEED4D/Exo image - load real depth
                     depth = depth_path_to_Torch(depth_path, self.target_resolution)
                 else:
-                    # nuScenes image - create dummy depth (all zeros)
-                    depth = torch.zeros(self.target_resolution, dtype=torch.float32)
+                    # nuScenes image - load depth from .npy file or create dummy
+                    if 'nuscenes' in image_path.lower() and 'samples' in image_path:
+                        # Get the sample token for this example_id
+                        if output_example_id in self.nuscene_token_per_example:
+                            sample_token = self.nuscene_token_per_example[output_example_id]
+                            depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_trainval_800/{sample_token}_depth.npy'
+                            
+                            if os.path.exists(depth_file_path):
+                                # Load depth from .npy file (shape: 450, 800 which is H, W)
+                                depth_npy = np.load(depth_file_path)
+                                
+                                # Convert to meters (depth values are in decimeters)
+                                depth_meters = depth_npy.astype(np.float32) / 10.0
+                                
+                                # Upscale from (450, 800) to target_resolution using nearest neighbor
+                                depth_tensor = torch.from_numpy(depth_meters).float()
+                                
+                                # Add batch and channel dimensions for interpolation
+                                depth_tensor = depth_tensor.unsqueeze(0).unsqueeze(0)  # (1, 1, 450, 800)
+                                
+                                # Upscale to target resolution
+                                depth_upscaled = F.interpolate(
+                                    depth_tensor, 
+                                    size=self.target_resolution, 
+                                    mode='nearest'
+                                )
+                                
+                                # Remove added dimensions
+                                depth = depth_upscaled.squeeze(0).squeeze(0)
+                            else:
+                                print(f"Warning: Depth file not found: {depth_file_path}")
+                                depth = torch.zeros(self.target_resolution, dtype=torch.float32)
+                        else:
+                            print(f"Warning: No sample token found for example_id {output_example_id}")
+                            depth = torch.zeros(self.target_resolution, dtype=torch.float32)
+                    else:
+                        # Not a nuScenes image, create dummy depth
+                        depth = torch.zeros(self.target_resolution, dtype=torch.float32)
                 
                 target_depths.append(depth)
             
             target_depths = torch.stack(target_depths).float()
+        
+
         # Reading Camera params
         target_extrinsics = self.extrinsics_target[output_example_id][index_target.numpy()]
         target_intrinsics = self.intrinsics_target[output_example_id][index_target.numpy()]
