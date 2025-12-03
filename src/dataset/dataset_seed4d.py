@@ -16,6 +16,7 @@ from typing import Literal, List, Optional, Union
 import open3d as o3d
 
 import torch
+import torch.nn.functional as F
 import torchvision.transforms as tf
 from einops import rearrange, repeat
 from jaxtyping import Float, UInt8
@@ -81,6 +82,8 @@ class Dataset_SEED4D(Dataset):
         self.view_sampler = view_sampler
         self.to_tensor = tf.ToTensor()
         self.nuscene_token_per_example = {}
+        self.nuscene_sample_data_tokens_per_example = {}
+        self.nuscene_path_to_token = {}  # Map image paths to sample_data tokens
         
         # Configure sensor selection
         self.sensor_indices = self._configure_sensor_selection()
@@ -287,13 +290,14 @@ class Dataset_SEED4D(Dataset):
     
     # ============ ADDED METHOD ============
     def _load_nuscene_frame_data(self, sample_token: str):
-        """Load nuScenes frame data including images, intrinsics, and extrinsics."""
+        """Load nuScenes frame data including images, intrinsics, extrinsics, and sample_data tokens."""
         frame_information = []
         nuscene_frame_info = self.nusc.get("sample", sample_token)
         sample_frame_info = nuscene_frame_info["data"]
         
         for sensor in desired_sensor_names:
-            sensor_data = self.nusc.get("sample_data", sample_frame_info[sensor])
+            sample_data_token = sample_frame_info[sensor]  
+            sensor_data = self.nusc.get("sample_data", sample_data_token)
             
             # Get ego pose
             ego_pose_info = self.nusc.get(table_name="ego_pose", token=sensor_data["ego_pose_token"])
@@ -323,7 +327,8 @@ class Dataset_SEED4D(Dataset):
             frame_information.append({
                 'image_path': sensor_file_path,
                 'intrinsic': torch.from_numpy(intrinsic_normal.astype(np.float32)),
-                'extrinsic': torch.from_numpy(sensor_transform.astype(np.float32))
+                'extrinsic': torch.from_numpy(sensor_transform.astype(np.float32)),
+                'sample_data_token': sample_data_token  
             })
         
         return frame_information
@@ -424,12 +429,20 @@ class Dataset_SEED4D(Dataset):
                     
                     # Store nuScenes context data
                     nuscene_context_count = 0
+                    sample_data_tokens_for_example = [] 
                     for frame_data in nuscene_frame_data:
                         self.all_texture_context[example_id].append(frame_data['image_path'])
                         self.intrinsics_context[example_id].append(frame_data['intrinsic'])
                         self.extrinsics_context[example_id].append(frame_data['extrinsic'])
+                        sample_data_tokens_for_example.append(frame_data['sample_data_token']) 
                         nuscene_context_count += 1
                         print(f"[DEBUG LOAD_INPUT]   Added nuScenes image {nuscene_context_count}: {frame_data['image_path']}")
+
+                    self.nuscene_sample_data_tokens_per_example[example_id] = sample_data_tokens_for_example
+                    
+                    # Create mapping from image path to sample_data token for easy lookup during depth loading
+                    for frame_data in nuscene_frame_data:
+                        self.nuscene_path_to_token[frame_data['image_path']] = frame_data['sample_data_token']
                     
                     print(f"[DEBUG LOAD_INPUT] Added {nuscene_context_count} nuScenes images to context views")
                     print(f"[DEBUG LOAD_INPUT] Total context views after nuScenes: {len(self.all_texture_context[example_id])}")
@@ -720,10 +733,16 @@ class Dataset_SEED4D(Dataset):
                 else:
                     # nuScenes image - load depth from .npy file or create dummy
                     if 'nuscenes' in image_path.lower() and 'samples' in image_path:
-                        # Get the sample token for this example_id
-                        if output_example_id in self.nuscene_token_per_example:
-                            sample_token = self.nuscene_token_per_example[output_example_id]
-                            depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_trainval_800/{sample_token}_depth.npy'
+                        # Look up sample_data token directly from image path
+                        if image_path in self.nuscene_path_to_token:
+                            sample_data_token = self.nuscene_path_to_token[image_path]
+                            
+                            if self.stage == 'train' or self.stage == 'val':
+                                depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_trainval_800/{sample_data_token}_depth.npy'
+                                print('Chosen trainval-set depth file: ', depth_file_path)
+                            else:
+                                depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_test_800/{sample_data_token}_depth.npy'
+                                print('Chosen test-set depth file: ', depth_file_path)
                             
                             if os.path.exists(depth_file_path):
                                 # Load depth from .npy file (shape: 450, 800 which is H, W)
@@ -750,12 +769,18 @@ class Dataset_SEED4D(Dataset):
                             else:
                                 print(f"Warning: Depth file not found: {depth_file_path}")
                                 depth = torch.zeros(self.target_resolution, dtype=torch.float32)
+                                assert False, "Depth file missing for nuScenes sample"
                         else:
-                            print(f"Warning: No sample token found for example_id {output_example_id}")
+                            print(f"Warning: Could not find sample_data token for image {image_path}")
+                            print(f"Available paths in mapping: {len(self.nuscene_path_to_token)}")
                             depth = torch.zeros(self.target_resolution, dtype=torch.float32)
+                            assert False, "Could not match image to sample_data token"
                     else:
                         # Not a nuScenes image, create dummy depth
+                        print(f"Warning: Depth map not found for image {image_path}, creating dummy depth")
                         depth = torch.zeros(self.target_resolution, dtype=torch.float32)
+                        assert False, "Depth file missing for nuScenes sample"
+
                 
                 target_depths.append(depth)
             
