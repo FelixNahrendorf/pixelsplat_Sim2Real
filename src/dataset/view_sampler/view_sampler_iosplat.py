@@ -164,6 +164,8 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
         elif experiment == "ego-exo-nuscenes":
 
             nuscene_context_indices = [6,7,8,9,10,11]
+            # Always use nuScenes views for ego-exo-nuscenes
+            index_context = torch.tensor(nuscene_context_indices, dtype=torch.int64, device=device)
                 # Sample target indices only for SEED4D 
             if self.stage=='test' or self.stage=='val':
                 # If the (hardcoded) target views are not None, then use them  
