@@ -335,7 +335,10 @@ class Dataset_SEED4D(Dataset):
     # ======================================
     
     def __len__(self):
-        return len(self.input_spawns)
+        if self.cfg.experiment in ('ego-ego-nuscenes', 'ego-exo-nuscenes'):
+            return len(self.nuscene_samples)
+        else:
+            return len(self.input_spawns)
     
     def get_bound(
         self,
@@ -637,7 +640,7 @@ class Dataset_SEED4D(Dataset):
                         self.intrinsics_target[example_id].append(intrins)
                         self.extrinsics_target[example_id].append(extrins) 
             else:
-                print('fail')
+                assert False, "Experiment is not set properly"
                 # For test stages, use the original logic
                 '''output_transforms = self.output_spawns[index]
                 target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(
@@ -672,7 +675,7 @@ class Dataset_SEED4D(Dataset):
         if self.cfg.experiment == 'ego-ego-nuscenes' or self.cfg.experiment == 'ego-exo-nuscenes':
             use_nuscene_for_this_sample = True
         elif self.cfg.experiment == 'ego-exo-mixed-domain':
-            use_nuscene_for_this_sample = (index % 50 == 0)
+            use_nuscene_for_this_sample = (index % 10 == 0)
         else:
             use_nuscene_for_this_sample = False
 
@@ -740,6 +743,9 @@ class Dataset_SEED4D(Dataset):
                             if self.stage == 'train' or self.stage == 'val':
                                 depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_trainval_800/{sample_data_token}_depth.npy'
                                 print('Chosen trainval-set depth file: ', depth_file_path)
+                            #elif self.stage == 'test' and self.cfg.experiment == 'ego-ego-nuscenes': #exception for testing old checkpoint
+                            #    depth = torch.zeros(self.target_resolution, dtype=torch.float32)
+                            #    depth_file_path = ''
                             else:
                                 depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_test_800/{sample_data_token}_depth.npy'
                                 print('Chosen test-set depth file: ', depth_file_path)
@@ -779,7 +785,8 @@ class Dataset_SEED4D(Dataset):
                         # Not a nuScenes image, create dummy depth
                         print(f"Warning: Depth map not found for image {image_path}, creating dummy depth")
                         depth = torch.zeros(self.target_resolution, dtype=torch.float32)
-                        assert False, "Depth file missing for nuScenes sample"
+                        print('SET DEPTH TO ZERO FOR NUSCENE TO', depth)
+                        assert False, "Depth file missing for sample"
 
                 
                 target_depths.append(depth)
