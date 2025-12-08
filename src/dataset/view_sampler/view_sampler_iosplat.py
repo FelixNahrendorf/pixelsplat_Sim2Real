@@ -146,8 +146,9 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                                                                     replace=False)).to(dtype=torch.int64, device=device)
                 # ======================================================================
         elif experiment == "ego-ego-nuscenes":
-            nuscene_context_indices = [6,7,8,9,10,11]
-            nuscene_target_indices = [98,99,100,101,102,103]
+            # For pure nuScenes loading, use indices 0-5 (6 cameras)
+            nuscene_context_indices = [0,1,2,3,4,5]
+            nuscene_target_indices = [0,1,2,3,4,5]
 
             # Always use nuScenes views for ego-ego-nuscenes
             index_context = torch.tensor(nuscene_context_indices, dtype=torch.int64, device=device)
@@ -162,8 +163,8 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                 index_target = torch.from_numpy(np.random.choice(nuscene_target_indices, size=self.cfg.num_target_views, 
                                                                 replace=False)).to(dtype=torch.int64, device=device)
         elif experiment == "ego-exo-nuscenes":
-
-            nuscene_context_indices = [6,7,8,9,10,11]
+            # For pure nuScenes context, use indices 0-5 (6 cameras)
+            nuscene_context_indices = [0,1,2,3,4,5] #[6,7,8,9,10,11]
             # Always use nuScenes views for ego-exo-nuscenes
             index_context = torch.tensor(nuscene_context_indices, dtype=torch.int64, device=device)
                 # Sample target indices only for SEED4D 
