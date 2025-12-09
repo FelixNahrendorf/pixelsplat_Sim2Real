@@ -809,14 +809,16 @@ class Dataset_SEED4D(Dataset):
                     sample_data_token = self.nuscene_path_to_token[image_path]
                     
                     if self.stage == 'train' or self.stage == 'val':
-                        depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_trainval_800/{sample_data_token}_depth.npy'
+                        depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_trainval_800_DA3METRIC-LARGE/{sample_data_token}_depth.npy'
+                        print('Found Nuscenes depth file path for train/val:', depth_file_path)
                     else:
-                        depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_test_800/{sample_data_token}_depth.npy'
+                        depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_test_800_DA3METRIC-LARGE/{sample_data_token}_depth.npy'
+                        print('Found Nuscenes depth file path for test:', depth_file_path)
                     
                     if os.path.exists(depth_file_path):
                         # Load depth from .npy file
                         depth_npy = np.load(depth_file_path)
-                        depth_meters = depth_npy.astype(np.float32) / 10.0
+                        depth_meters = depth_npy.astype(np.float32) 
                         depth_tensor = torch.from_numpy(depth_meters).float()
                         depth_tensor = depth_tensor.unsqueeze(0).unsqueeze(0)
                         depth_upscaled = F.interpolate(depth_tensor, size=self.target_resolution, mode='nearest')
