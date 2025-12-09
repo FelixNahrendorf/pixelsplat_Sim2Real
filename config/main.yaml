@@ -9,14 +9,14 @@ defaults:
   - loss: [mse, mae] #seed4d/carla
 
 wandb:
-  project: pixelsplat_diverse_training #nuscene-alike-dataset 
+  project: pixelsplat_diverse_2poses_training #nuscene-alike-dataset 
   #project: pixelsplat_nuScene_td1_rend1_mixed #nuscene 
   #project: pixelsplat_mae_test_carla #carla
   #project: pixelsplat_mae_test_seed4d #seed4d
   #project: pixelsplat_nuscene_ego_exo #nuscene_ego_exo
   entity: scene-representation-group
   name: placeholder
-  mode: online
+  mode: offline #online
 
 mode: test
 
@@ -100,6 +100,22 @@ checkpointing:
   #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-24/23-50-04/checkpoints/epoch=840-step=200000.ckpt #training2: mae loss weight =0.1
   #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-24/23-20-20/checkpoints/epoch=504-step=120000.ckpt
 
+#Experiment 6 Mixed domain etc, depth loss 0.01
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-28/12-15-18/checkpoints/epoch=1260-step=300000.ckpt
+#Experiment 7 Mixed domain etc, depth loss 0.1
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-27/15-33-39/checkpoints/epoch=1260-step=300000.ckpt
+#Experiment 8 Mixed domain, mit nuscene depth, depth loss 0.01
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-28/23-50-56/checkpoints/epoch=1260-step=300000.ckpt  #broken
+#Experiment 9 Mixed domain, mit nuscene depth, depth loss 0.1
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-28/23-55-53/checkpoints/epoch=1260-step=300000.ckpt  #broken
+
+
+  #Experiment 10
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-03/21-41-53/checkpoints/epoch=1260-step=300000.ckpt #10
+  #Experiment 11
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-04/00-01-46/checkpoints/epoch=1260-step=300000.ckpt #11
+  
+
   every_n_train_steps: 20000
   save_top_k: -1
 
@@ -120,13 +136,23 @@ test:
 
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-eval_ego-exo_Nuscene_new #1
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_Nuscene_new_test_loader #2
-  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_2percent_Nus_seedloader_delete #3
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_2percent_Nus_seedloader_delete #3
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-eval_ego-exo_Nuscene_new_check_setup_delete
 
   #output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td1_rend1_2
   #output_path: /app/outputs/ego_exo_mixed_domain_testrun 
   #output_path: /app/outputs/nuscene_on_nuscene_ckpt_0shot_ego_exo #_td1_rend1_test
   #output_path: /app/outputs/ego_exo_nuscene_on_carla_ckpt_original_extrinsics_from_nuscene #nuscene_ego_exo
+
+
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment6 #6
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment10_setup_test #7
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_SEED4D_experiment8 #8  #broken
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment9 #9  #broken
+  
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscene_experiment10 #10
+  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_SEED4D_experiment11_test #11
+
   compute_scores: false
   save_image: true
   save_video: true

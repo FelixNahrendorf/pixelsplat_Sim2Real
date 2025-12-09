@@ -1,0 +1,4 @@
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Requirement already satisfied: numba in /usr/local/lib/python3.10/dist-packages (0.62.1)
+Requirement already satisfied: numpy in /usr/local/lib/python3.10/dist-packages (2.2.6)
+Requirement already satisfied: llvmlite<0.46,>=0.45.0dev0 in /usr/local/lib/python3.10/dist-packages (from numba) (0.45.1)

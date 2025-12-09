@@ -1,22 +1,23 @@
 # @package _global_
 
 defaults:
-  - override /dataset: seed4d 
+  - override /dataset: seed4d #nuscene #
   - override /model/encoder: epipolar
   - override /model/encoder/backbone: dino
-  - override /loss: [mse, lpips, mae] #[mse, lpips] #
+  - override /loss:  [mse, lpips, mae] #[mse, lpips] #
 
 wandb:
   name: seed
   tags: [seed, 128x128]
+  mode: offline
 
 dataset:
   image_shape: [128, 128] # [128, 128]  # 
-  roots: [datasets/seed4d] #[datasets/nuscene] #
+  roots: [datasets/seed4d] #[datasets/nuscene] # #
   training_towns: ['01','03','04','05','06','07', '10HD']  # Configure training towns here #training_towns = ['01','03','04','05','06','07', '10HD']
   testing_towns: ['02']   # Configure testing towns here
   selected_sensors: [0, 1, 2, 3, 4, 5]  # List of sensor indices to use (0-6 based on transforms_ego.json)
-  experiment: ego-exo-mixed-domain #ego-exo-mixed #ego-ego # ego-exo-nuscenes 
+  experiment: ego-exo-nuscenes #exo-mixed-domain #ego-nuscenes #ego-exo-mixed #ego-ego # ego-exo-nuscenes 
 
 data_loader:
   train:
@@ -31,8 +32,17 @@ test:
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-eval_ego-exo_Nuscene_new_check_setup_delete #1
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_Nuscene_new #2
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_Nuscene_new_test_loader #2
-  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_2percent_Nus_seedloader_delete #3
+
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment10_setup_test #6
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment7 #7
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_SEED4D_experiment8 #8  #broken
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment9 #9  #broken
+
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_2percent_Nus_seedloader #3
+
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment10 #10
+  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_SEED4D_experiment11_test #11
+
   compute_scores: true
 
 

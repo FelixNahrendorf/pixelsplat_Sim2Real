@@ -9,6 +9,7 @@ defaults:
 wandb:
   name: seed
   tags: [seed, 128x128] #[seed, 256x256]
+  mode: offline #change this back once proxy issue is solved
 
 dataset:
   image_shape: [128, 128] #[256, 256]
