@@ -579,6 +579,35 @@ class ModelWrapper(LightningModule):
                 f"scene = {batch['scene']}; "
                 f"context = {batch['context']['index'].tolist()}"
             )
+        
+        # ============ Log loaded images ============
+        # Log context images
+        print(f"Context images shape: {batch['context']['image'].shape}")
+        print(f"Context indices: {batch['context']['index'].tolist()}")
+        
+        # Log target images
+        print(f"Target images shape: {batch['target']['image'].shape}")
+        print(f"Target indices: {batch['target']['index'].tolist()}")
+        
+        # Save a visualization of loaded images
+        b = batch['context']['image'].shape[0]
+        for batch_elem in range(b):
+            context_imgs = batch['context']['image'][batch_elem]
+            target_imgs = batch['target']['image'][batch_elem]
+            
+            # Create visualization of loaded images
+            loaded_imgs_viz = hcat(
+                add_label(vcat(*context_imgs), "Loaded Context Images"),
+                add_label(vcat(*target_imgs), "Loaded Target Images"),
+            )
+            
+            self.logger.log_image(
+                "loaded_images",
+                [prep_image(add_border(loaded_imgs_viz))],
+                step=self.global_step,
+                caption=f"{batch['scene'][batch_elem]} - Loaded Images"
+            )
+        # ==================================================
 
         # Render Gaussians.
         b, _, _, h, w = batch["target"]["image"].shape
