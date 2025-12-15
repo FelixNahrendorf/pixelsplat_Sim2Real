@@ -809,10 +809,10 @@ class Dataset_SEED4D(Dataset):
                     sample_data_token = self.nuscene_path_to_token[image_path]
                     
                     if self.stage == 'train' or self.stage == 'val':
-                        depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_trainval_800/{sample_data_token}_depth.npy'
+                        depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_trainval_800_DA3METRIC-LARGE/{sample_data_token}_depth.npy'
                         print('Found Nuscenes depth file path for train/val:', depth_file_path)
                     else:
-                        depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_test_800/{sample_data_token}_depth.npy'
+                        depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_test_800_DA3METRIC-LARGE/{sample_data_token}_depth.npy'
                         print('Found Nuscenes depth file path for test:', depth_file_path)
                     
                     if os.path.exists(depth_file_path):

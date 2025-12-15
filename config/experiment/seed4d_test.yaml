@@ -41,7 +41,10 @@ test:
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_2percent_Nus_seedloader #3
 
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment10 #10
-  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_SEED4D_experiment11_test #11
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_SEED4D_experiment11_test #11
+  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment12 #_ckpt_180k #12
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment13_ckpt_180k #13
+  
 
   compute_scores: true
 

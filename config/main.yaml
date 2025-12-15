@@ -114,6 +114,15 @@ checkpointing:
   #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-03/21-41-53/checkpoints/epoch=1260-step=300000.ckpt #10
   #Experiment 11
   #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-04/00-01-46/checkpoints/epoch=1260-step=300000.ckpt #11
+
+  #Experiment 12
+  load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-09/21-35-08/checkpoints/epoch=1260-step=300000.ckpt #12
+
+  #Experiment 12_mid_test
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-09/21-35-08/checkpoints/epoch=756-step=180000.ckpt #12_mid
+
+  #Experiment 13_mid_test
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-11/23-24-21/checkpoints/epoch=756-step=180000.ckpt
   
 
   every_n_train_steps: 20000
@@ -151,7 +160,9 @@ test:
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment9 #9  #broken
   
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscene_experiment10 #10
-  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_SEED4D_experiment11_test #11
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_SEED4D_experiment11_test #11
+  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment12 #_ckpt_180k #12
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment13_ckpt_180k #13
 
   compute_scores: false
   save_image: true
