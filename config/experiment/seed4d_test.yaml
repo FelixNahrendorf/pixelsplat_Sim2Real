@@ -4,7 +4,7 @@ defaults:
   - override /dataset: seed4d #nuscene #
   - override /model/encoder: epipolar
   - override /model/encoder/backbone: dino
-  - override /loss:  [mse, lpips, mae] #[mse, lpips] #
+  - override /loss: [mse, lpips] # [mse, lpips, mae] #
 
 wandb:
   name: seed
@@ -17,7 +17,7 @@ dataset:
   training_towns: ['01','03','04','05','06','07', '10HD']  # Configure training towns here #training_towns = ['01','03','04','05','06','07', '10HD']
   testing_towns: ['02']   # Configure testing towns here
   selected_sensors: [0, 1, 2, 3, 4, 5]  # List of sensor indices to use (0-6 based on transforms_ego.json)
-  experiment: ego-exo-nuscenes #exo-mixed-domain #ego-nuscenes #ego-exo-mixed #ego-ego # ego-exo-nuscenes 
+  experiment: ego-exo-nuscenes #xo-nuscenes #exo-mixed-domain #ego-nuscenes #ego-exo-mixed #ego-ego # ego-exo-nuscenes 
 
 data_loader:
   train:
@@ -42,8 +42,8 @@ test:
 
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment10 #10
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_SEED4D_experiment11_test #11
-  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment12 #_ckpt_180k #12
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment13_ckpt_180k #13
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment12 #_ckpt_180k #12
+  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment13_ckpt_180k #13
   
 
   compute_scores: true
