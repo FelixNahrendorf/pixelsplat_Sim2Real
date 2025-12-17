@@ -579,8 +579,8 @@ class ModelWrapper(LightningModule):
                 f"scene = {batch['scene']}; "
                 f"context = {batch['context']['index'].tolist()}"
             )
-        
-        # ============ Log loaded images ============
+
+        # ============ ADDED: Log loaded images ============
         # Log context images
         print(f"Context images shape: {batch['context']['image'].shape}")
         print(f"Context indices: {batch['context']['index'].tolist()}")
@@ -589,26 +589,83 @@ class ModelWrapper(LightningModule):
         print(f"Target images shape: {batch['target']['image'].shape}")
         print(f"Target indices: {batch['target']['index'].tolist()}")
         
-        # Save a visualization of loaded images
-        b = batch['context']['image'].shape[0]
-        for batch_elem in range(b):
-            context_imgs = batch['context']['image'][batch_elem]
-            target_imgs = batch['target']['image'][batch_elem]
-            
-            # Create visualization of loaded images
-            loaded_imgs_viz = hcat(
-                add_label(vcat(*context_imgs), "Loaded Context Images"),
-                add_label(vcat(*target_imgs), "Loaded Target Images"),
-            )
-            
-            self.logger.log_image(
-                "loaded_images",
-                [prep_image(add_border(loaded_imgs_viz))],
-                step=self.global_step,
-                caption=f"{batch['scene'][batch_elem]} - Loaded Images"
-            )
+        # Optional: Save a visualization of loaded images
+        context_imgs = batch['context']['image'][0]
+        target_imgs = batch['target']['image'][0]
+        
+        # Create visualization of loaded images
+        loaded_imgs_viz = hcat(
+            add_label(vcat(*context_imgs), "Loaded Context Images"),
+            add_label(vcat(*target_imgs), "Loaded Target Images"),
+        )
+        
+        self.logger.log_image(
+            "loaded_images",
+            [prep_image(add_border(loaded_imgs_viz))],
+            step=self.global_step,
+            caption=[batch['scene'][0]]  # FIX: Use list with single element, and index [0]
+        )
         # ==================================================
+        
+        # Render Gaussians.
+        b, _, _, h, w = batch["target"]["image"].shape
+        assert b == 1
+        gaussians_probabilistic = self.encoder(
+            batch["context"],
+            self.global_step,
+            deterministic=False, 
+        )
+        output_probabilistic = self.decoder.forward(
+            gaussians_probabilistic,
+            batch["target"]["extrinsics"],
+            batch["target"]["intrinsics"],
+            batch["target"]["near"],
+            batch["target"]["far"],
+            (h, w),
+        )
+        rgb_probabilistic = output_probabilistic.color[0]
+        gaussians_deterministic = self.encoder(
+            batch["context"],
+            self.global_step,
+            deterministic=True,
+        )
+        output_deterministic = self.decoder.forward(
+            gaussians_deterministic,
+            batch["target"]["extrinsics"],
+            batch["target"]["intrinsics"],
+            batch["target"]["near"],
+            batch["target"]["far"],
+            (h, w),
+        )
+        rgb_deterministic = output_deterministic.color[0]
 
+        # Compute validation metrics.
+        rgb_gt = batch["target"]["image"][0]
+        for tag, rgb in zip(
+            ("deterministic", "probabilistic"), (rgb_deterministic, rgb_probabilistic)
+        ):
+            psnr = compute_psnr(rgb_gt, rgb).mean()
+            self.log(f"val/psnr_{tag}", psnr)
+            lpips = compute_lpips(rgb_gt, rgb).mean()
+            self.log(f"val/lpips_{tag}", lpips)
+            ssim = compute_ssim(rgb_gt, rgb).mean()
+            self.log(f"val/ssim_{tag}", ssim)
+
+        # Construct comparison image.
+        comparison = hcat(
+            add_label(vcat(*batch["context"]["image"][0]), "Context"),
+            add_label(vcat(*rgb_gt), "Target (Ground Truth)"),
+            add_label(vcat(*rgb_probabilistic), "Target (Probabilistic)"),
+            add_label(vcat(*rgb_deterministic), "Target (Deterministic)"),
+        )
+        self.logger.log_image(
+            "comparison",
+            [prep_image(add_border(comparison))],
+            step=self.global_step,
+            caption=[batch["scene"][0]],  # FIX: Also fix this existing line
+        )
+        # ==================================================
+        '''
         # Render Gaussians.
         b, _, _, h, w = batch["target"]["image"].shape
         assert b == 1
@@ -666,7 +723,7 @@ class ModelWrapper(LightningModule):
             step=self.global_step,
             caption=batch["scene"],
         )
-
+        '''
         # Render projections and construct projection image.
         # These are disabled for now, since RE10k scenes are effectively unbounded.
         projections = vcat(
