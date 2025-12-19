@@ -818,7 +818,7 @@ class Dataset_SEED4D(Dataset):
                     if os.path.exists(depth_file_path):
                         # Load depth from .npy file
                         depth_npy = np.load(depth_file_path)
-                        depth_meters = depth_npy.astype(np.float32) /100
+                        depth_meters = depth_npy.astype(np.float32) /100.0 #scaling for Depth images generated with DA3GIANT-LARGE
                         depth_tensor = torch.from_numpy(depth_meters).float()
                         depth_tensor = depth_tensor.unsqueeze(0).unsqueeze(0)
                         depth_upscaled = F.interpolate(depth_tensor, size=self.target_resolution, mode='nearest')
