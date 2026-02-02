@@ -183,3 +183,7 @@ table.tex
 #docker image
 /dev_docker/pixelsplat_sim2real.tar.gz
 /dev_docker/Docker_Build_HOLM_mod
+
+#pretrained weights
+
+/dino_resnet50_pretrain.pth
