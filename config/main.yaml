@@ -5,8 +5,8 @@ defaults:
   - dataset: seed4d #seed4d
   - model/encoder: epipolar
   - model/decoder: splatting_cuda
-  #- loss: [mse, lpips] #nuscene
-  - loss: [mse, mae] #seed4d/carla
+  - loss: [mse, lpips] #nuscene
+  # loss: [mse, mae] #seed4d/carla
 
 wandb:
   project: pixelsplat_diverse_2poses_training #nuscene-alike-dataset 
@@ -127,6 +127,19 @@ checkpointing:
   #Experiment 13
   #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-11/23-24-21/checkpoints/epoch=1260-step=300000.ckpt #13
 
+  #Experiment 14
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-17/16-58-36/checkpoints/epoch=1260-step=300000.ckpt
+
+  #Experiment 15
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-18/08-54-29/checkpoints/epoch=1260-step=300000.ckpt
+
+  #Experiment 16
+  #load: /app/code/pixelsplat_Sim2Real/outputs/2026-01-01/19-41-11/checkpoints/epoch=1260-step=300000.ckpt
+
+  #Experiment 17 secogan
+  load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-01-29/18-27-29/checkpoints/epoch=630-step=300000.ckpt
+
+
 
   
 
@@ -167,7 +180,12 @@ test:
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscene_experiment10 #10
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_SEED4D_experiment11_test #11
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment12 #_ckpt_180k #12
-  output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment13_ckpt_180k #13
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment13_ckpt_180k #13
+
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment14_correct_rel_loss_metric #14
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment15 #15
+  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment16_depth_giant_large #16
+  output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_Nuscenes_experiment17 #17
 
   compute_scores: false
   save_image: true
