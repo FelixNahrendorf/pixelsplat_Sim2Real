@@ -91,8 +91,7 @@ def save_video(
         frames.append(prep_image(image))
 
     writer = skvideo.io.FFmpegWriter(path, 
-                                     outputdict={'-pix_fmt': 'yuv420p', '-crf': '21', 
-                                                 '-vf': f'setpts=1.*PTS'})
+                                     outputdict={'-pix_fmt': 'yuv420p'})
     for frame in frames:
         writer.writeFrame(frame)
     writer.close()
