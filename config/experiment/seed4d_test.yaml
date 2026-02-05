@@ -17,7 +17,7 @@ dataset:
   training_towns: ['01','03','04','05','06','07', '10HD']  # Configure training towns here #training_towns = ['01','03','04','05','06','07', '10HD']
   testing_towns: ['02']   # Configure testing towns here
   selected_sensors: [0, 1, 2, 3, 4, 5]  # List of sensor indices to use (0-6 based on transforms_ego.json)
-  experiment: ego-exo-nuscenes #exo-mixed-domain #ego-nuscenes #ego-exo-mixed #ego-ego # ego-exo-nuscenes 
+  experiment: ego-ego-nuscenes #exo-mixed-domain #ego-nuscenes #ego-exo-mixed #ego-ego # ego-exo-nuscenes 
 
 data_loader:
   train:
@@ -49,7 +49,7 @@ test:
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment14_correct_rel_loss_metric #14
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment15 #15
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment16_depth_giant_large #16
-  output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_Nuscenes_experiment17 #17
+  output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_experiment17 #17
   
 
   compute_scores: true
