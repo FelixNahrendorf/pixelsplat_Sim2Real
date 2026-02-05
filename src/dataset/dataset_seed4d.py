@@ -113,16 +113,16 @@ class Dataset_SEED4D(Dataset):
             
             # Load night sample tokens from appropriate file
             if version == 'v1.0-trainval':
-                night_scenes_file = '/app/code/Sim2Real/domain_adaptation/nuscene_night_scenes_felix/nuscenes_v1.0-trainval_night_scenes.txt'
+                night_scenes_file = '/app/felix/code/Sim2Real/domain_adaptation/nuscene_night_scenes_felix/nuscenes_v1.0-trainval_night_scenes.txt'
             else:
-                night_scenes_file = '/app/code/Sim2Real/domain_adaptation/nuscene_night_scenes_felix/nuscenes_v1.0-test_night_scenes.txt'
+                night_scenes_file = '/app/felix/code/Sim2Real/domain_adaptation/nuscene_night_scenes_felix/nuscenes_v1.0-test_night_scenes.txt'
             
             # Read night sample tokens
             with open(night_scenes_file, 'r') as f:
                 night_sample_tokens = set(line.strip() for line in f if line.strip())
             
             # Load outlier pose tokens
-            outlier_poses_file = '/app/code/Sim2Real/camera_setup_comparison/nuscenes_camera_setup/nuscenes_15_outlier_poses.txt'
+            outlier_poses_file = '/app/felix/code/Sim2Real/camera_setup_comparison/nuscenes_camera_setup/nuscenes_15_outlier_poses.txt'
             with open(outlier_poses_file, 'r') as f:
                 outlier_pose_tokens = set(line.strip() for line in f if line.strip())
             
@@ -812,10 +812,10 @@ class Dataset_SEED4D(Dataset):
                     sample_data_token = self.nuscene_path_to_token[image_path]
                     
                     if self.stage == 'train' or self.stage == 'val':
-                        depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_trainval_800/{sample_data_token}_depth.npy' #_DA3METRIC-LARGE
+                        depth_file_path = f'/app/felix/data/depth_anything3/nuscenes_depth_trainval_800/{sample_data_token}_depth.npy' #_DA3METRIC-LARGE
                         #print('Found Nuscenes depth file path for train/val:', depth_file_path)
                     else:
-                        depth_file_path = f'/app/inputs/depth_anything3/data/nuscenes_depth_test_800/{sample_data_token}_depth.npy' #_DA3METRIC-LARGE
+                        depth_file_path = f'/app/felix/data/depth_anything3/nuscenes_depth_test_800/{sample_data_token}_depth.npy' #_DA3METRIC-LARGE
                         #print('Found Nuscenes depth file path for test:', depth_file_path)
                     
                     if os.path.exists(depth_file_path):
