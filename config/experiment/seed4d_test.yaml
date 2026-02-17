@@ -8,11 +8,11 @@ defaults:
 
 wandb:
   name: seed
-  tags: [seed, 128x128]
+  tags: [seed, 128x128] #[seed, 256x256] #[seed, 128x128]
   mode: offline
 
 dataset:
-  image_shape: [128, 128] # [128, 128]  # 
+  image_shape: [128, 128] #[256, 256] #[128, 128] # [128, 128]  # 
   roots: [datasets/seed4d] #[datasets/nuscene] # #
   training_towns: ['01','03','04','05','06','07', '10HD']  # Configure training towns here #training_towns = ['01','03','04','05','06','07', '10HD']
   testing_towns: ['02']   # Configure testing towns here
@@ -49,7 +49,16 @@ test:
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment14_correct_rel_loss_metric #14
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment15 #15
   #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment16_depth_giant_large #16
-  output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_experiment17 #17
+  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_experiment17 #17
+  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_experiment18 #18
+  output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_experiment19 #19
+
+  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_4 #4
+  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_5 #5
+  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_6 #6
+  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_7 #7
+  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_8 #8
+  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_9 #9
   
 
   compute_scores: true
