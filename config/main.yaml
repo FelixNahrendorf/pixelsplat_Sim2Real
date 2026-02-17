@@ -5,8 +5,8 @@ defaults:
   - dataset: seed4d #seed4d
   - model/encoder: epipolar
   - model/decoder: splatting_cuda
-  - loss: [mse, lpips] #nuscene
-  # loss: [mse, mae] #seed4d/carla
+  #- loss: [mse, lpips] #nuscene
+  - loss: [mse, mae] #seed4d/carla
 
 wandb:
   project: pixelsplat_diverse_2poses_training #nuscene-alike-dataset 
@@ -143,7 +143,7 @@ checkpointing:
 
   
 
-  every_n_train_steps: 20000
+  every_n_train_steps: 10000 #was before: 20000
   save_top_k: -1
 
 train:
