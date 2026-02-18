@@ -32,7 +32,7 @@ epipolar_transformer:
     d_dot: 128
     d_mlp: 256
   num_octaves: 10
-  num_layers: 3
+  num_layers: 2
   num_heads: 4
   num_samples: 32
   d_dot: 128
