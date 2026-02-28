@@ -144,12 +144,101 @@ class ModelWrapper(LightningModule):
         
         return colored_depth_tensor
 
+    # =========================================================================
+    # RAIN-GS covariance modifications (arxiv 2403.09413)
+    #
+    # Two independent techniques, each toggled by one uncommented line in
+    # training_step.  They can be used separately or together.
+    #
+    # ── (A) Progressive Low-Pass Filter ──────────────────────────────────────
+    # Multiplies all covariances by λ² early in training so the rasterizer
+    # only sees blurry, low-frequency content.  λ decays to 1.0 over time.
+    # Covariance Σ = R S Sᵀ Rᵀ; scaling S by λ  →  Σ_new = λ² · Σ.
+    #
+    LPF_LAMBDA_INIT: float = 4.0    # starting multiplier; try 2–8
+    LPF_END_STEP:    int   = 30000  # step at which λ reaches 1.0 (no-op after)
+    #
+    # ── (B) Progressive eps2d diagonal regulariser ───────────────────────────
+    # Adds s·I to every projected 2-D covariance so no Gaussian collapses
+    # below one pixel (eq. 5 in the paper).  Standard fixed value is s=0.3.
+    # Here we start with a large s_init (acts like an additional LPF) and
+    # decay it to s_min=0.3 in staircase steps of ratio r every decay_every
+    # steps:  s(t) = max(s_min, s_init · r^(t // decay_every))
+    #
+    # The addition is done in 3-D covariance space as s·I₃ so it is
+    # rasterizer-agnostic (no changes needed in the decoder/rasterizer).
+    # When the rasterizer projects Σ₃ → Σ₂ and adds the pixel-coverage term
+    # internally, set s_init=0.3, decay_ratio=1.0 to use the standard fix only.
+    #
+    EPS2D_S_INIT:     float = 1.0   # large → strong early regularisation
+    EPS2D_S_MIN:      float = 0.3    # final value (paper default)
+    EPS2D_DECAY_RATIO: float = 1/3   # multiply s by this every decay_every steps
+    EPS2D_DECAY_EVERY: int  = 5000 # staircase period in steps
+    # =========================================================================
+
+    # ── helpers ──────────────────────────────────────────────────────────────
+
+    def _apply_lpf_to_gaussians(self, gaussians, step: int):
+        """(A) Multiply covariances by λ²; λ decays exponentially to 1."""
+        lambda_val = max(
+            1.0,
+            self.LPF_LAMBDA_INIT
+            * (1.0 / self.LPF_LAMBDA_INIT) ** (step / max(self.LPF_END_STEP, 1)),
+        )
+        if lambda_val <= 1.0 + 1e-6:
+            return gaussians  # fully decayed → no-op
+
+        self.log("train/lpf_lambda", lambda_val)
+        return type(gaussians)(
+            means=gaussians.means,
+            covariances=gaussians.covariances * (lambda_val ** 2),
+            harmonics=gaussians.harmonics,
+            opacities=gaussians.opacities,
+        )
+
+    def _get_eps2d(
+        self,
+        step: int,
+        s_init: float  = None,
+        s_min: float   = None,
+        decay_ratio: float = None,
+        decay_every: int   = None,
+    ) -> float:
+        """Return the current eps2d value on the staircase decay schedule."""
+        s_init      = s_init      if s_init      is not None else self.EPS2D_S_INIT
+        s_min       = s_min       if s_min       is not None else self.EPS2D_S_MIN
+        decay_ratio = decay_ratio if decay_ratio is not None else self.EPS2D_DECAY_RATIO
+        decay_every = decay_every if decay_every is not None else self.EPS2D_DECAY_EVERY
+
+        n_steps = step // max(decay_every, 1)
+        s = s_init * (decay_ratio ** n_steps)
+        return max(s_min, s)
+
+    def _apply_eps2d_to_gaussians(self, gaussians, step: int):
+        """(B) Add s·I₃ to every 3-D covariance matrix."""
+        s = self._get_eps2d(step)
+        self.log("train/eps2d_s", s)
+
+        eye3 = torch.eye(3, dtype=gaussians.covariances.dtype,
+                         device=gaussians.covariances.device)
+        # covariances shape: (b, n, 3, 3)
+        return type(gaussians)(
+            means=gaussians.means,
+            covariances=gaussians.covariances + s * eye3,
+            harmonics=gaussians.harmonics,
+            opacities=gaussians.opacities,
+        )
+
     def training_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
         _, _, _, h, w = batch["target"]["image"].shape
         
         # Run the model.
         gaussians = self.encoder(batch["context"], self.global_step, False)
+        # [LPF]   Uncomment to enable progressive low-pass filter (RAIN-GS §5.2):
+        #gaussians = self._apply_lpf_to_gaussians(gaussians, self.global_step)
+        # [EPS2D] Uncomment to enable progressive diagonal regulariser (eq. 5):
+        #gaussians = self._apply_eps2d_to_gaussians(gaussians, self.global_step)
         output = self.decoder.forward(
             gaussians,
             batch["target"]["extrinsics"],
