@@ -175,9 +175,37 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                     index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
                 # If not, then randomly select them
                 else:
-                    assert self.cfg.num_target_views<=20 
-                    index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
-                                                                    replace=False)).to(dtype=torch.int64, device=device) 
+                    #assert self.cfg.num_target_views<=20 
+                    #index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
+                    #                                                replace=False)).to(dtype=torch.int64, device=device) 
+                    
+                    #changes for BEV
+                    n = len(extrinsics_target)  # actual frames in BEV JSON, e.g. 6
+                    size = min(self.cfg.num_target_views, n)  # don't request more than available
+                    index_target = torch.from_numpy(
+                        np.random.choice(np.arange(0, n), size=size, replace=False)
+                    ).to(dtype=torch.int64)
+                    print("index_target ### test/val step ###", index_target)
+
+            elif self.stage == 'train': #80 sphere target views 
+                index_target = torch.from_numpy(np.random.choice(np.arange(0, 80), size=self.cfg.num_target_views, 
+                                                                replace=False)).to(dtype=torch.int64, device=device)
+            # ======================================================================
+        elif experiment == "ego-exo-nuscenes-scene":
+            # For pure nuScenes context, use indices 0-5 (6 cameras)
+            nuscene_context_indices = [0,1,2,3,4,5] #[6,7,8,9,10,11]
+            # Always use nuScenes views for ego-exo-nuscenes
+            index_context = torch.tensor(nuscene_context_indices, dtype=torch.int64, device=device)
+                # Sample target indices only for SEED4D 
+            if self.stage=='test' or self.stage=='val':
+                # If the (hardcoded) target views are not None, then use them  
+                if self.cfg.target_views is not None:
+                    #assert len(self.cfg.target_views) == self.cfg.num_target_views
+                    index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
+                # If not, then randomly select them
+                else:
+                    #assert self.cfg.num_target_views<=20 
+                    index_target = torch.tensor([97]).to(dtype=torch.int64, device=device) 
             elif self.stage == 'train': #80 sphere target views 
                 index_target = torch.from_numpy(np.random.choice(np.arange(0, 80), size=self.cfg.num_target_views, 
                                                                 replace=False)).to(dtype=torch.int64, device=device)
@@ -191,11 +219,37 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                     index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
                 else:
                     assert self.cfg.num_target_views<=20 
-                    index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
-                                                                    replace=False)).to(dtype=torch.int64) #choice=nop.arange(0, 20), For test/val stages, you typically want deterministic/reproducible results, not random sampling
+                    #index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
+                    #                                                replace=False)).to(dtype=torch.int64) #choice=nop.arange(0, 20), For test/val stages, you typically want deterministic/reproducible results, not random sampling
+                    #index_target = torch.from_numpy(np.random.choice(np.arange(0, self.cfg.num_target_views), size=self.cfg.num_target_views, 
+                    #                                                replace=False)).to(dtype=torch.int64) #BEV modification
+                    
+                    #changes for BEV
+                    n = len(extrinsics_target)  # actual frames in BEV JSON, e.g. 6
+                    size = min(self.cfg.num_target_views, n)  # don't request more than available
+                    index_target = torch.from_numpy(
+                        np.random.choice(np.arange(0, n), size=size, replace=False)
+                    ).to(dtype=torch.int64)
+                    print("index_target ### test/val step ###", index_target)
+
+
             elif self.stage == 'train':
-                index_target = torch.from_numpy(np.random.choice(np.arange(0, 80), size=self.cfg.num_target_views, 
-                                                                replace=False, p=target_sample_weight)).to(dtype=torch.int64) 
+                #index_target = torch.from_numpy(np.random.choice(np.arange(0, 80), size=self.cfg.num_target_views, 
+                #                                                replace=False, p=target_sample_weight)).to(dtype=torch.int64)
+                #index_target = torch.from_numpy(np.random.choice(np.arange(0, self.cfg.num_target_views), size=self.cfg.num_target_views, 
+                #                                                replace=False, p=target_sample_weight)).to(dtype=torch.int64) 
+                n = len(extrinsics_target)  # BEV modification: actual pool size from the data
+                w = target_sample_weight[:n]
+                w = w / w.sum()  # renormalize after slicing
+                index_target = torch.from_numpy(
+                    np.random.choice(
+                        np.arange(0, n),
+                        size=self.cfg.num_target_views,
+                        replace=False,
+                        p=w
+                    )
+                ).to(dtype=torch.int64)
+                print("index_target ### train step ###", index_target)
         elif experiment == "ego-ego":
             # If the (hardcoded) target views are not None, then use them  
             if self.cfg.target_views is not None:
