@@ -40,7 +40,7 @@ from pyquaternion.quaternion import Quaternion
 from .nuscene_reader import desired_sensor_names, CameraInfo
 # =======================================
 
-SEED4D_DATASET_ROOT = '/app/felix/data/seed4d/data/data_diverse_1600x900_2poses/static/'#'/app/inputs/seed4d/data/data_diverse_1600x900_2poses/static/' #'/app/inputs/seed4d/data/data_baseline/static/' #'/app/inputs/seed4d/data/data_diverse/static/'  # #'/app/inputs/seed4d/data/data_diverse_1600x900/static/'  
+SEED4D_DATASET_ROOT = '/app/felix/data/seed4d/data/data_1600x900_new/static/'#'/app/inputs/seed4d/data/data_diverse_1600x900_2poses/static/' #'/app/inputs/seed4d/data/data_baseline/static/' #'/app/inputs/seed4d/data/data_diverse/static/'  # #'/app/inputs/seed4d/data/data_diverse_1600x900/static/'  
 assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
 
 LIDAR_DATASET_ROOT = '/app/new/seed4d/pseudo_lidar/' # Will be directory to save pseudo lidar 
@@ -63,6 +63,7 @@ class Dataset_SEED4DCfg(DatasetCfgCommon):
     testing_towns: List[str] = None   # Add testing towns configuration
     selected_sensors: Optional[List[int]] = None  # List of sensor indices to use
     #sensor_range: Optional[List[int]] = None  # Alternative: [start, end] range of sensors
+    nuscene_scene_index: Optional[List[int]] = None  # For 'ego-exo-nuscenes-scene': list of scene indices (0-based) within the test split to evaluate on
     
 
 class Dataset_SEED4D(Dataset):
@@ -90,7 +91,7 @@ class Dataset_SEED4D(Dataset):
         self.nuscene_samples = []
 
         # Only load nuScenes for experiments that need it
-        if self.cfg.experiment in ('ego-exo-mixed-domain', 'ego-ego-nuscenes', 'ego-exo-nuscenes'):
+        if self.cfg.experiment in ('ego-exo-mixed-domain', 'ego-ego-nuscenes', 'ego-exo-nuscenes', 'ego-exo-nuscenes-scene'):
             version = 'v1.0-trainval' if stage in ['train', 'val'] else 'v1.0-test'
             self.nusc = NuScenes(version=version, dataroot=NUSCENE_DATA_DIR)
             all_splits = create_splits_scenes()
@@ -140,6 +141,39 @@ class Dataset_SEED4D(Dataset):
                 f"{total_samples_before} total scenes, {night_samples_count} night scenes, "
                 f"{outlier_samples_count} outlier poses, {total_filtered} total filtered, "
                 f"{len(self.nuscene_samples)} scenes left after filtering")
+            
+            # ============ NEW: ego-exo-nuscenes-scene — one or more scenes, ordered frames ============
+            if self.cfg.experiment == 'ego-exo-nuscenes-scene':
+                scene_indices = self.cfg.nuscene_scene_index if self.cfg.nuscene_scene_index is not None else [0]
+                # Collect all scenes that belong to this split (preserving nusc.scene order)
+                split_scenes = [s for s in self.nusc.scene if s["name"] in self.nuscene_scenes]
+
+                all_ordered_tokens = []
+                # token -> scene name mapping so __getitem__ can set the output subdirectory
+                self.token_to_scene_name = {}
+
+                for scene_index in scene_indices:
+                    assert scene_index < len(split_scenes), (
+                        f"nuscene_scene_index={scene_index} is out of range: only {len(split_scenes)} scenes in split")
+                    selected_scene = split_scenes[scene_index]
+
+                    # Walk the temporal chain of sample tokens for this scene
+                    token = selected_scene["first_sample_token"]
+                    scene_tokens = []
+                    while token:
+                        scene_tokens.append(token)
+                        self.token_to_scene_name[token] = selected_scene["name"]
+                        sample = self.nusc.get("sample", token)
+                        token = sample["next"]
+
+                    all_ordered_tokens.extend(scene_tokens)
+                    print(f"[ego-exo-nuscenes-scene] Selected scene '{selected_scene['name']}' "
+                          f"(index {scene_index} in split). "
+                          f"Frames: {len(scene_tokens)}")
+
+                self.nuscene_samples = all_ordered_tokens
+                print(f"[ego-exo-nuscenes-scene] Total frames across {len(scene_indices)} scene(s): {len(self.nuscene_samples)}")
+            # ===========================================================================================
         else:
             print(f"Skipping nuScenes initialization for experiment type: {self.cfg.experiment}")
         # ====================================================
@@ -163,7 +197,8 @@ class Dataset_SEED4D(Dataset):
             ###ego-exo training 
             elif self.cfg.experiment == 'ego-exo':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-                self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_train.json' for spawn_dir in self.spawn_dirs]
+                #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_train.json' for spawn_dir in self.spawn_dirs]
+                self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_train.json' for spawn_dir in self.spawn_dirs] #BEV modification
             ### ego-exo-mixed-domain training
             assert self.cfg.experiment is not None
             if self.cfg.experiment == 'ego-exo-mixed-domain':
@@ -184,7 +219,8 @@ class Dataset_SEED4D(Dataset):
             ###ego-exo training 
             elif self.cfg.experiment == 'ego-exo':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-                self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+                #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+                self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' for spawn_dir in self.spawn_dirs] #BEV modification
             ### ego-exo-mixed-domain training
             assert self.cfg.experiment is not None
             if self.cfg.experiment == 'ego-exo-mixed-domain':
@@ -202,7 +238,8 @@ class Dataset_SEED4D(Dataset):
             ### ego-exo testing
             if self.cfg.experiment == 'ego-exo':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-                self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+                #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+                self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' for spawn_dir in self.spawn_dirs] #BEV modification
             ### ego-ego testing
             elif self.cfg.experiment == 'ego-ego':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
@@ -217,6 +254,15 @@ class Dataset_SEED4D(Dataset):
                 self.output_images = self.spawn_dirs
             ### ego-exo-nuscenes testing
             if self.cfg.experiment == 'ego-exo-nuscenes':
+                self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
+                #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' for spawn_dir in self.spawn_dirs] #BEV modification
+                self.output_images = self.spawn_dirs
+
+            ### ego-exo-nuscenes-scene testing
+            # Same target setup as ego-exo-nuscenes (SEED4D sphere views).
+            # Context is driven entirely by the 40 ordered nuscene_samples of the selected scene;
+            # input_images is unused for context but output_images provides the SEED4D target spawns.
+            if self.cfg.experiment == 'ego-exo-nuscenes-scene':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
                 self.output_images = self.spawn_dirs
             
@@ -252,7 +298,7 @@ class Dataset_SEED4D(Dataset):
         print('test_output', test_output)
         print('test_output length', len(test_output))
         
-        if self.cfg.experiment in ('ego-ego-nuscenes', 'ego-exo-nuscenes'):
+        if self.cfg.experiment in ('ego-ego-nuscenes', 'ego-exo-nuscenes', 'ego-exo-nuscenes-scene'):
             print(f"Carla Dataset, initialized for {self.stage} stage, will use # {len(self.nuscene_samples)} nuScenes samples with augmentation = {self.augment_flag}")
         else:
             print(f"Carla Dataset, initialized for {self.stage} stage, will use # {len(self.input_spawns)} spawns with augmentation = {self.augment_flag}")
@@ -339,7 +385,9 @@ class Dataset_SEED4D(Dataset):
     # ============ FIXED: Modified __len__ method ============
     def __len__(self):
         if self.cfg.experiment == 'ego-ego-nuscenes':
-            # Use nuScenes samples for ego-ego-nuscenes only
+            return len(self.nuscene_samples)
+        elif self.cfg.experiment == 'ego-exo-nuscenes-scene':
+            # One entry per temporally-ordered frame in the selected scene (40 frames)
             return len(self.nuscene_samples)
         else:
             # Default: use SEED4D spawn directories (includes ego-exo-nuscenes)
@@ -361,7 +409,7 @@ class Dataset_SEED4D(Dataset):
     # ============ FIXED: Modified get_input_example_id method ============
     def get_input_example_id(self, index):
         """Get example_id for input/context data"""
-        if self.cfg.experiment in ('ego-ego-nuscenes', 'ego-exo-nuscenes'):
+        if self.cfg.experiment in ('ego-ego-nuscenes', 'ego-exo-nuscenes', 'ego-exo-nuscenes-scene'):
             # For nuScenes-only experiments, return the nuScenes sample token
             # This avoids indexing into input_spawns which only has SEED4D entries
             if index < len(self.nuscene_samples):
@@ -384,6 +432,11 @@ class Dataset_SEED4D(Dataset):
                 return self.nuscene_samples[index]
             else:
                 raise IndexError(f"Index {index} out of bounds for {len(self.nuscene_samples)} nuScenes samples")
+        elif self.cfg.experiment == 'ego-exo-nuscenes-scene':
+            # Same as ego-exo-nuscenes: target is SEED4D sphere views.
+            # We have 40 nuScenes frames but potentially more/fewer SEED4D spawns,
+            # so we cycle through output_spawns by wrapping the index.
+            example_id = self.output_spawns[0]
         elif self.cfg.experiment == 'ego-exo-nuscenes':
             # For ego-exo-nuscenes: context uses nuScenes token, target uses SEED4D sphere views
             example_id = self.output_spawns[index]
@@ -614,16 +667,35 @@ class Dataset_SEED4D(Dataset):
                             self.extrinsics_target[example_id].append(extrins)
 
                 elif self.cfg.experiment == 'ego-exo-nuscenes':
-                    # For ego-exo-nuscenes: only load sphere views as target
+                    # For ego-exo-nuscenes / ego-exo-nuscenes-scene: only load sphere views as target
                     # Context is handled separately with nuScenes token
                     #print(f"[DEBUG] Loading ego-exo-nuscenes target data for {example_id}")
                     
-                    exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_train.json'
+                    #exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_train.json'
+                    exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' #changes for BEV
                     exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices = readPixelSplatCamera(
                         exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
                         near=self.cfg.z_near, far=self.cfg.z_far)
                     
-                    print(f"Stage {self.stage}: Loading {len(exo_image_paths)} EXO target views (sphere) for ego-exo-nuscenes")
+                    print(f"Stage {self.stage}: Loading {len(exo_image_paths)} EXO target views (sphere) for {self.cfg.experiment}")
+                    
+                    # Store exo sphere views only
+                    for image_path, intrins, extrins in zip(exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices):
+                        self.all_texture_target[example_id].append(image_path)
+                        self.intrinsics_target[example_id].append(intrins)
+                        self.extrinsics_target[example_id].append(extrins)
+
+                elif self.cfg.experiment == 'ego-exo-nuscenes-scene': 
+                    # For ego-exo-nuscenes / ego-exo-nuscenes-scene: only load sphere views as target
+                    # Context is handled separately with nuScenes token
+                    #print(f"[DEBUG] Loading ego-exo-nuscenes target data for {example_id}")
+                    
+                    exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego.json'
+                    exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices = readPixelSplatCamera(
+                        exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
+                        near=self.cfg.z_near, far=self.cfg.z_far)
+                    
+                    print(f"Stage {self.stage}: Loading {len(exo_image_paths)} EXO target views (sphere) for {self.cfg.experiment}")
                     
                     # Store exo sphere views only
                     for image_path, intrins, extrins in zip(exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices):
@@ -699,6 +771,7 @@ class Dataset_SEED4D(Dataset):
                 ###ego-exo training only
                 elif self.cfg.experiment == 'ego-exo':
                     output_transforms = self.output_spawns[index]
+                    print(f"[DEBUG ego-exo] output_transforms = {output_transforms}") 
                     target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(
                     output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
                     near=self.cfg.z_near, far=self.cfg.z_far)
@@ -753,7 +826,7 @@ class Dataset_SEED4D(Dataset):
         input_example_id = self.get_input_example_id(index)
         output_example_id = self.get_output_example_id(index)
 
-        if self.cfg.experiment == 'ego-ego-nuscenes' or self.cfg.experiment == 'ego-exo-nuscenes':
+        if self.cfg.experiment == 'ego-ego-nuscenes' or self.cfg.experiment == 'ego-exo-nuscenes' or self.cfg.experiment == 'ego-exo-nuscenes-scene':
             use_nuscene_for_this_sample = True
         elif self.cfg.experiment == 'ego-exo-mixed-domain':
             use_nuscene_for_this_sample = (index % 50 == 0)
@@ -876,7 +949,11 @@ class Dataset_SEED4D(Dataset):
                         "fov": self.get_bound("fov", len(index_target)),
                         "index": index_target,
                     },
-                    "scene": "Carla",
+                    "scene": (self.token_to_scene_name[input_example_id]
+                               if self.cfg.experiment == 'ego-exo-nuscenes-scene'
+                               and hasattr(self, 'token_to_scene_name')
+                               and input_example_id in self.token_to_scene_name
+                               else "Carla"),
                     "dataset_change": use_nuscene_for_this_sample}
 
 
