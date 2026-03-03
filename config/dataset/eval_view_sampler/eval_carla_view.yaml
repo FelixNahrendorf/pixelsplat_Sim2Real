@@ -8,7 +8,7 @@ augment_mask_count: 5
 
 # If you want to hard-code context views, do so here.
 context_views: null
-target_views: null
+target_views: null #[72, 98] #72=POV, 98=BEV
 # #
-input_context_resolution: 128 #256 #64 #256 
-output_target_resolution: 128 #256 #64 #256 
+input_context_resolution: 192 #128 #192 #128 #192 #256 #64 #256 
+output_target_resolution: 192 #512 #128 #192 #512 #192 #128 #256 #64 #256 
