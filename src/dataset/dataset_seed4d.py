@@ -25,8 +25,6 @@ from torch import Tensor
 from torch.utils.data import Dataset
 
 from .dataset import DatasetCfgCommon
-# from .shims.augmentation_shim import apply_augmentation_shim
-# from .shims.mask_shim import apply_mask_shim
 from .types import Stage
 from .view_sampler import ViewSampler, ViewSamplerCfg
 
@@ -40,13 +38,13 @@ from pyquaternion.quaternion import Quaternion
 from .nuscene_reader import desired_sensor_names, CameraInfo
 # =======================================
 
-SEED4D_DATASET_ROOT = '/app/felix/data/seed4d/data/data_diverse_1600x900_2poses_secogan2/static/'#'/app/inputs/seed4d/data/data_diverse_1600x900_2poses/static/' #'/app/inputs/seed4d/data/data_baseline/static/' #'/app/inputs/seed4d/data/data_diverse/static/'  # #'/app/inputs/seed4d/data/data_diverse_1600x900/static/'  
+SEED4D_DATASET_ROOT = '/app/felix/data/seed4d/data/data_diverse_1600x900_2poses/static/'
 assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
 
-LIDAR_DATASET_ROOT = '/app/new/seed4d/pseudo_lidar/' # Will be directory to save pseudo lidar 
+LIDAR_DATASET_ROOT = '/app/new/seed4d/pseudo_lidar/'
 
 # ============ ADDED CONSTANT ============
-NUSCENE_DATA_DIR = "/app/datasets/nuscenes_full/" 
+NUSCENE_DATA_DIR = "/app/datasets/nuscenes_full/"
 assert NUSCENE_DATA_DIR is not None, "Update the location of the NUSCENE Dataset"
 # ========================================
 
@@ -59,12 +57,11 @@ class Dataset_SEED4DCfg(DatasetCfgCommon):
     z_near: float
     z_far: float
     experiment: str
-    training_towns: List[str] = None  # Add training towns configuration
-    testing_towns: List[str] = None   # Add testing towns configuration
-    selected_sensors: Optional[List[int]] = None  # List of sensor indices to use
-    #sensor_range: Optional[List[int]] = None  # Alternative: [start, end] range of sensors
-    nuscene_scene_index: Optional[List[int]] = None  # For 'ego-exo-nuscenes-scene': list of scene indices (0-based) within the test split to evaluate on
-    
+    training_towns: List[str] = None
+    testing_towns: List[str] = None
+    selected_sensors: Optional[List[int]] = None
+    nuscene_scene_index: Optional[List[int]] = None
+
 
 class Dataset_SEED4D(Dataset):
     cfg: Dataset_SEED4DCfg
@@ -82,15 +79,17 @@ class Dataset_SEED4D(Dataset):
         self.stage = stage
         self.view_sampler = view_sampler
         self.to_tensor = tf.ToTensor()
+
+        # Lookup dicts mapping SEED4D example_id -> nuScenes sample token / sample_data tokens,
+        # and image file path -> sample_data token (used for depth map retrieval)
         self.nuscene_token_per_example = {}
         self.nuscene_sample_data_tokens_per_example = {}
-        self.nuscene_path_to_token = {}  # Map image paths to sample_data tokens
+        self.nuscene_path_to_token = {}
         
-        # Configure sensor selection
         self.sensor_indices = self._configure_sensor_selection()
         self.nuscene_samples = []
 
-        # Only load nuScenes for experiments that need it
+        # Only load nuScenes for experiments that require real-world data
         if self.cfg.experiment in ('ego-exo-mixed-domain', 'ego-ego-nuscenes', 'ego-exo-nuscenes', 'ego-exo-nuscenes-scene'):
             version = 'v1.0-trainval' if stage in ['train', 'val'] else 'v1.0-test'
             self.nusc = NuScenes(version=version, dataroot=NUSCENE_DATA_DIR)
@@ -100,7 +99,8 @@ class Dataset_SEED4D(Dataset):
             else:
                 self.nuscene_scenes = all_splits['test']
             
-            # Get nuScenes sample tokens for this split
+            # Collect all sample tokens for scenes belonging to the current split,
+            # by walking each scene's temporal chain from first to last sample
             for scene in self.nusc.scene:
                 if scene["name"] in self.nuscene_scenes:
                     sample_token = scene["first_sample_token"]
@@ -109,28 +109,23 @@ class Dataset_SEED4D(Dataset):
                         sample = self.nusc.get("sample", sample_token)
                         sample_token = sample["next"]
             
-            # Filter out night scenes and outlier poses for domain adaptation
             total_samples_before = len(self.nuscene_samples)
             
-            # Load night sample tokens from appropriate file
             if version == 'v1.0-trainval':
                 night_scenes_file = '/app/felix/code/Sim2Real/domain_adaptation/nuscene_night_scenes_felix/data/nuscenes_v1.0-trainval_night_scenes.txt'
             else:
                 night_scenes_file = '/app/felix/code/Sim2Real/domain_adaptation/nuscene_night_scenes_felix/data/nuscenes_v1.0-test_night_scenes.txt'
             
-            # Read night sample tokens
             with open(night_scenes_file, 'r') as f:
                 night_sample_tokens = set(line.strip() for line in f if line.strip())
             
-            # Load outlier pose tokens
             outlier_poses_file = '/app/felix/code/Sim2Real/camera_setup_comparison/nuscenes_camera_setup/nuscenes_15_outlier_poses.txt'
             with open(outlier_poses_file, 'r') as f:
                 outlier_pose_tokens = set(line.strip() for line in f if line.strip())
             
-            # Combine both filtering sets
+            # Remove night samples and frames with degenerate camera poses to improve
+            # domain adaptation quality — only daytime, well-calibrated samples are kept
             tokens_to_filter = night_sample_tokens | outlier_pose_tokens
-            
-            # Filter samples
             self.nuscene_samples = [token for token in self.nuscene_samples if token not in tokens_to_filter]
             
             night_samples_count = len(night_sample_tokens & set(self.nuscene_samples + list(tokens_to_filter)))
@@ -142,14 +137,14 @@ class Dataset_SEED4D(Dataset):
                 f"{outlier_samples_count} outlier poses, {total_filtered} total filtered, "
                 f"{len(self.nuscene_samples)} scenes left after filtering")
             
-            # ============ NEW: ego-exo-nuscenes-scene — one or more scenes, ordered frames ============
+            # ~~~ ego-exo-nuscenes-scene ~~~
+            # For scene-level evaluation, restrict the dataset to one or more specific nuScenes
+            # scenes identified by index within the split, rather than using all samples
             if self.cfg.experiment == 'ego-exo-nuscenes-scene':
                 scene_indices = self.cfg.nuscene_scene_index if self.cfg.nuscene_scene_index is not None else [0]
-                # Collect all scenes that belong to this split (preserving nusc.scene order)
                 split_scenes = [s for s in self.nusc.scene if s["name"] in self.nuscene_scenes]
 
                 all_ordered_tokens = []
-                # token -> scene name mapping so __getitem__ can set the output subdirectory
                 self.token_to_scene_name = {}
 
                 for scene_index in scene_indices:
@@ -157,7 +152,6 @@ class Dataset_SEED4D(Dataset):
                         f"nuscene_scene_index={scene_index} is out of range: only {len(split_scenes)} scenes in split")
                     selected_scene = split_scenes[scene_index]
 
-                    # Walk the temporal chain of sample tokens for this scene
                     token = selected_scene["first_sample_token"]
                     scene_tokens = []
                     while token:
@@ -173,126 +167,110 @@ class Dataset_SEED4D(Dataset):
 
                 self.nuscene_samples = all_ordered_tokens
                 print(f"[ego-exo-nuscenes-scene] Total frames across {len(scene_indices)} scene(s): {len(self.nuscene_samples)}")
-            # ===========================================================================================
+            # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         else:
             print(f"Skipping nuScenes initialization for experiment type: {self.cfg.experiment}")
-        # ====================================================
         
         data_dir_naming = '/ClearNoon/vehicle.audi.tt/'
         
         training_towns = self.cfg.training_towns if self.cfg.training_towns is not None else ['02']
         testing_towns = self.cfg.testing_towns if self.cfg.testing_towns is not None else ['02']
         
+        # Build lists of input/output transform file paths for each CARLA spawn point,
+        # varying by experiment type (ego-only, ego+exo, mixed-domain, etc.)
         if (self.stage == 'train'):
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns]
             self.spawn_dirs = [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle') for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
-            random.shuffle(self.spawn_dirs) 
+            random.shuffle(self.spawn_dirs)
   
-            ### ego-exo-mixed training
-            assert self.cfg.experiment is not None
+            # ~~~ ego-exo-mixed ~~~
             if self.cfg.experiment == 'ego-exo-mixed':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-                self.output_images = self.spawn_dirs 
-            ###ego-exo training 
+                self.output_images = self.spawn_dirs
+            # ~~~ ego-exo ~~~
             elif self.cfg.experiment == 'ego-exo':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
                 self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_train.json' for spawn_dir in self.spawn_dirs]
                 #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_train.json' for spawn_dir in self.spawn_dirs] #BEV modification
-            ### ego-exo-mixed-domain training
-            assert self.cfg.experiment is not None
+            # ~~~ ego-exo-mixed-domain ~~~
             if self.cfg.experiment == 'ego-exo-mixed-domain':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-                self.output_images = self.spawn_dirs 
+                self.output_images = self.spawn_dirs
 
-        elif (self.stage == 'val'): 
+        elif (self.stage == 'val'):
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in training_towns]
             self.spawn_dirs = [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle') for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
-            random.shuffle(self.spawn_dirs) 
+            random.shuffle(self.spawn_dirs)
             
-            ### ego-exo-mixed training
-            assert self.cfg.experiment is not None
+            # ~~~ ego-exo-mixed ~~~
             if self.cfg.experiment == 'ego-exo-mixed':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-                self.output_images = self.spawn_dirs  
-            ###ego-exo training 
+                self.output_images = self.spawn_dirs
+            # ~~~ ego-exo ~~~
             elif self.cfg.experiment == 'ego-exo':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
                 self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
                 #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' for spawn_dir in self.spawn_dirs] #BEV modification
-            ### ego-exo-mixed-domain training
-            assert self.cfg.experiment is not None
+            # ~~~ ego-exo-mixed-domain ~~~
             if self.cfg.experiment == 'ego-exo-mixed-domain':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-                self.output_images = self.spawn_dirs 
+                self.output_images = self.spawn_dirs
 
-        elif (self.stage == 'test'): 
+        elif (self.stage == 'test'):
             self.parent_dirs = [SEED4D_DATASET_ROOT + 'Town' + town + data_dir_naming for town in testing_towns]
             self.spawn_dirs = [str_list_concat(spawns_dir, spawns_dir, 'step_0/ego_vehicle') for spawns_dir in self.parent_dirs]
             self.spawn_dirs = list(itertools.chain.from_iterable(self.spawn_dirs))
-            #print(f"DEBUG TEST STAGE: Total spawn directories found: {len(self.spawn_dirs)}")
-            random.shuffle(self.spawn_dirs) 
+            random.shuffle(self.spawn_dirs)
 
-            assert self.cfg.experiment is not None
-            ### ego-exo testing
+            # ~~~ ego-exo ~~~
             if self.cfg.experiment == 'ego-exo':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
                 self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
                 #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' for spawn_dir in self.spawn_dirs] #BEV modification
-            ### ego-ego testing
+            # ~~~ ego-ego ~~~
             elif self.cfg.experiment == 'ego-ego':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
                 self.output_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-            ### ego-exo-mixed-domain testing
+            # ~~~ ego-exo-mixed-domain ~~~
             if self.cfg.experiment == 'ego-exo-mixed-domain':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-                self.output_images = self.spawn_dirs 
-            ### ego-ego-nuscenes testing
+                self.output_images = self.spawn_dirs
+            # ~~~ ego-ego-nuscenes ~~~
             if self.cfg.experiment == 'ego-ego-nuscenes':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
                 self.output_images = self.spawn_dirs
-            ### ego-exo-nuscenes testing
+            # ~~~ ego-exo-nuscenes ~~~
             if self.cfg.experiment == 'ego-exo-nuscenes':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
                 #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' for spawn_dir in self.spawn_dirs] #BEV modification
                 self.output_images = self.spawn_dirs
-
-            ### ego-exo-nuscenes-scene testing
-            # Same target setup as ego-exo-nuscenes (SEED4D sphere views).
-            # Context is driven entirely by the 40 ordered nuscene_samples of the selected scene;
-            # input_images is unused for context but output_images provides the SEED4D target spawns.
+            # ~~~ ego-exo-nuscenes-scene ~~~
             if self.cfg.experiment == 'ego-exo-nuscenes-scene':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
                 self.output_images = self.spawn_dirs
             
-        else: raise ValueError("Trying to call dataset class for other purposes is not allowed")
+        else:
+            raise ValueError("Trying to call dataset class for other purposes is not allowed")
         
         self.input_spawns = np.array(self.input_images)
         self.output_spawns = np.array(self.output_images)
         
-        # # Selected randomly to train just on a single spawn point
-        #self.input_spawns = np.array(self.input_images)[:10]
-        #self.output_spawns = np.array(self.output_images)[:10]
-        
-        # configuring relevant resolution for inward and outward facing cameras
         self.context_resolution = (self.view_sampler.cfg.input_context_resolution, self.view_sampler.cfg.input_context_resolution)
         self.target_resolution = (self.view_sampler.cfg.output_target_resolution, self.view_sampler.cfg.output_target_resolution)
         
-        #######################################################################
-        # Below is the important flag changing workflow of several blocks
         self.augment_flag = self.stage == 'train' and self.cfg.train_view_sampler.augment
         
-        # Preload ALL input data (context)
+        # Pre-cache all camera data (image paths, intrinsics, extrinsics) at init time to avoid
+        # repeated disk reads during training. This populates self.all_texture_context/target etc.
         print("Loading input data...")
-        # Use self.__len__() which returns the correct count based on experiment
         test_input = [self.load_input_example_id(idx) for idx in range(0, self.__len__())]
 
         print('stage', self.stage)
         print('test_input', test_input)
         print('test_input length', len(test_input))
         
-        # Preload ALL output data (target)  
         print("Loading output data...")
         test_output = [self.load_output_example_id(idx) for idx in range(0, self.__len__())]
         print('test_output', test_output)
@@ -308,11 +286,9 @@ class Dataset_SEED4D(Dataset):
     def _configure_sensor_selection(self) -> List[int]:
         """Configure which sensors to use based on configuration."""
         if self.cfg.selected_sensors is not None:
-            # Use explicitly specified sensor list
             sensor_indices = self.cfg.selected_sensors
             print(f"Using explicitly selected sensors: {sensor_indices}")
         else:
-            # Default: use all 6 sensors (0-5)
             sensor_indices = list(range(6))
             print(f"Using default sensor range: {sensor_indices}")
         
@@ -320,23 +296,11 @@ class Dataset_SEED4D(Dataset):
     
     def _filter_context_sensor_data(self, image_paths: List[str], intrinsics: torch.Tensor, extrinsics: torch.Tensor) -> tuple:
         """Filter CONTEXT sensor data based on selected sensor indices. Only applies to ego vehicle sensors."""
-        '''print(f'Filtering context sensors - Original count: {len(image_paths)}')
-        print(f'Selected sensor indices: {self.sensor_indices}')'''
-        
-        # Filter image paths using the sensor indices directly
         filtered_image_paths = [image_paths[i] for i in self.sensor_indices]
-        
-        # Filter tensors using tensor indexing with the sensor indices
         filtered_intrinsics = intrinsics[self.sensor_indices]
         filtered_extrinsics = extrinsics[self.sensor_indices]
-        
-        '''print(f'Filtering context sensors - Filtered count: {len(filtered_image_paths)}')
-        print(f'Filtered intrinsics shape: {filtered_intrinsics.shape}')
-        print(f'Filtered extrinsics shape: {filtered_extrinsics.shape}')'''
-        
         return filtered_image_paths, filtered_intrinsics, filtered_extrinsics
     
-    # ============ ADDED METHOD ============
     def _load_nuscene_frame_data(self, sample_token: str):
         """Load nuScenes frame data including images, intrinsics, extrinsics, and sample_data tokens."""
         frame_information = []
@@ -344,27 +308,28 @@ class Dataset_SEED4D(Dataset):
         sample_frame_info = nuscene_frame_info["data"]
         
         for sensor in desired_sensor_names:
-            sample_data_token = sample_frame_info[sensor]  
+            sample_data_token = sample_frame_info[sensor]
             sensor_data = self.nusc.get("sample_data", sample_data_token)
             
-            # Get ego pose
+            # Retrieve the ego-vehicle global pose at the time this sensor frame was captured
             ego_pose_info = self.nusc.get(table_name="ego_pose", token=sensor_data["ego_pose_token"])
             ego_pose_rotation = Quaternion(ego_pose_info["rotation"])
             ego_pose_translation = np.array(ego_pose_info["translation"])
             
-            # Get sensor calibration
-            sensor_pose_info = self.nusc.get(table_name="calibrated_sensor", 
+            # Retrieve the sensor's extrinsic calibration (pose relative to the ego vehicle)
+            sensor_pose_info = self.nusc.get(table_name="calibrated_sensor",
                                             token=sensor_data["calibrated_sensor_token"])
             sensor_intrinsic = np.array(sensor_pose_info["camera_intrinsic"])
             sensor_pose_rotation = Quaternion(sensor_pose_info["rotation"])
             sensor_pose_translation = np.array(sensor_pose_info["translation"])
             
-            # Compute transformation matrices
+            # Build the 4x4 sensor-to-world extrinsic matrix using the calibrated sensor pose
             sensor_transform = transform_matrix(sensor_pose_translation, sensor_pose_rotation)
             
             sensor_file_path = NUSCENE_DATA_DIR + sensor_data["filename"]
             
-            # Normalize intrinsics
+            # Normalize the intrinsic matrix by image dimensions so values are in [0, 1] range,
+            # matching the convention used by PixelSplat / SEED4D
             intrinsic_normal = np.zeros((3, 3))
             intrinsic_normal[0, 0] = sensor_intrinsic[0, 0] / sensor_data["width"]
             intrinsic_normal[1, 1] = sensor_intrinsic[1, 1] / sensor_data["height"]
@@ -376,69 +341,56 @@ class Dataset_SEED4D(Dataset):
                 'image_path': sensor_file_path,
                 'intrinsic': torch.from_numpy(intrinsic_normal.astype(np.float32)),
                 'extrinsic': torch.from_numpy(sensor_transform.astype(np.float32)),
-                'sample_data_token': sample_data_token  
+                'sample_data_token': sample_data_token
             })
         
         return frame_information
-    # ======================================
     
-    # ============ FIXED: Modified __len__ method ============
     def __len__(self):
         if self.cfg.experiment == 'ego-ego-nuscenes':
             return len(self.nuscene_samples)
         elif self.cfg.experiment == 'ego-exo-nuscenes-scene':
-            # One entry per temporally-ordered frame in the selected scene (40 frames)
             return len(self.nuscene_samples)
         else:
-            # Default: use SEED4D spawn directories (includes ego-exo-nuscenes)
             return len(self.input_spawns)
-    # ========================================================
     
     def get_bound(
         self,
         bound: Literal["z_near", "z_far", "fov"],
         num_views: int) -> Float[Tensor, " view"]:
-        # return near and far bounds with shape = (num_views,) 
-        if bound=='z_near': value = torch.tensor(self.cfg.z_near, dtype=torch.float32) 
-        elif bound=='z_far': value = torch.tensor(self.cfg.z_far, dtype=torch.float32) 
-        elif bound=='fov': value = torch.tensor(self.cfg.max_fov, dtype=torch.float32) 
-        
-        else: raise KeyError("Wrong bound type is passed to retrieve")
+        if bound == 'z_near':
+            value = torch.tensor(self.cfg.z_near, dtype=torch.float32)
+        elif bound == 'z_far':
+            value = torch.tensor(self.cfg.z_far, dtype=torch.float32)
+        elif bound == 'fov':
+            value = torch.tensor(self.cfg.max_fov, dtype=torch.float32)
+        else:
+            raise KeyError("Wrong bound type is passed to retrieve")
         return repeat(value, "-> v", v=num_views)
 
-    # ============ FIXED: Modified get_input_example_id method ============
     def get_input_example_id(self, index):
         """Get example_id for input/context data"""
         if self.cfg.experiment in ('ego-ego-nuscenes', 'ego-exo-nuscenes', 'ego-exo-nuscenes-scene'):
-            # For nuScenes-only experiments, return the nuScenes sample token
-            # This avoids indexing into input_spawns which only has SEED4D entries
             if index < len(self.nuscene_samples):
                 return self.nuscene_samples[index]
             else:
                 raise IndexError(f"Index {index} out of bounds for {len(self.nuscene_samples)} nuScenes samples")
         
-        # Default behavior for SEED4D-based experiments
         intrin_path = self.input_spawns[index]
         example_id = intrin_path[:find_nth_reverse(intrin_path, '/', 3)]
         return example_id
-    # =====================================================================
 
-    # ============ FIXED: Modified get_output_example_id method ============
     def get_output_example_id(self, index):
         """Get example_id for output/target data"""
         if self.cfg.experiment == 'ego-ego-nuscenes':
-            # For ego-ego-nuscenes: both context and target use nuScenes tokens
             if index < len(self.nuscene_samples):
                 return self.nuscene_samples[index]
             else:
                 raise IndexError(f"Index {index} out of bounds for {len(self.nuscene_samples)} nuScenes samples")
         elif self.cfg.experiment == 'ego-exo-nuscenes-scene':
-            # Same as ego-exo-nuscenes: target is SEED4D sphere views.
-            # We have 40 nuScenes frames but potentially more/fewer SEED4D spawns,
-            # so we cycle through output_spawns by wrapping the index.
+            # All nuScenes frames share the same fixed CARLA spawn as the exo target
             example_id = self.output_spawns[0]
         elif self.cfg.experiment == 'ego-exo-nuscenes':
-            # For ego-exo-nuscenes: context uses nuScenes token, target uses SEED4D sphere views
             example_id = self.output_spawns[index]
         elif self.cfg.experiment in ('ego-exo-mixed', 'ego-exo-mixed-domain'):
             example_id = self.output_spawns[index]
@@ -449,17 +401,13 @@ class Dataset_SEED4D(Dataset):
             raise ValueError(f"Unknown experiment type: {self.cfg.experiment}")
         
         return example_id
-    # ======================================================================
 
-    # ============ NEW: Helper method to detect nuScenes tokens ============
     def _is_nuscene_token(self, example_id):
         """Check if example_id is a nuScenes sample token (32-char hex string)."""
-        return (isinstance(example_id, str) and 
-                len(example_id) == 32 and 
+        return (isinstance(example_id, str) and
+                len(example_id) == 32 and
                 example_id in self.nuscene_samples)
-    # ======================================================================
     
-    # ============ FIXED: Modified load_input_example_id method ============
     def load_input_example_id(self, index):
         """Load and cache input/context data"""
         example_id = self.get_input_example_id(index)
@@ -474,114 +422,75 @@ class Dataset_SEED4D(Dataset):
             self.intrinsics_context[example_id] = []
             self.extrinsics_context[example_id] = []
             
-            #print(f"\n[DEBUG LOAD_INPUT] Processing example_id: {example_id}")
-            #print(f"[DEBUG LOAD_INPUT] Stage: {self.stage}, Experiment: {self.cfg.experiment}")
-            
-            # ============ NEW: Check if this is a nuScenes token ============
+            # nuScenes-only experiments: load all 6 surround cameras directly from the nuScenes API
             if self._is_nuscene_token(example_id):
-                print(f"[DEBUG LOAD_INPUT] Loading nuScenes sample token: {example_id}")
-                
-                # Use existing _load_nuscene_frame_data method
                 frame_information = self._load_nuscene_frame_data(example_id)
                 
-                # Extract data from frame_information
                 for frame_data in frame_information:
                     self.all_texture_context[example_id].append(frame_data['image_path'])
                     self.intrinsics_context[example_id].append(frame_data['intrinsic'])
                     self.extrinsics_context[example_id].append(frame_data['extrinsic'])
-                    
-                    # Store path to token mapping for depth loading later
                     self.nuscene_path_to_token[frame_data['image_path']] = frame_data['sample_data_token']
                 
-                # Stack tensors
                 self.intrinsics_context[example_id] = torch.stack(self.intrinsics_context[example_id]).cpu()
                 self.extrinsics_context[example_id] = torch.stack(self.extrinsics_context[example_id]).cpu()
-                
-                #print(f"[DEBUG LOAD_INPUT] Loaded {len(self.all_texture_context[example_id])} nuScenes context views")
-                #print(f"[DEBUG LOAD_INPUT] Context intrinsics shape: {self.intrinsics_context[example_id].shape}")
-                #print(f"[DEBUG LOAD_INPUT] Context extrinsics shape: {self.extrinsics_context[example_id].shape}")
             
             else:
-                # ============ EXISTING SEED4D LOADING LOGIC ============
+                # CARLA-based experiments: read camera data from PixelSplat-format transform JSON
+                # and restrict to the configured subset of ego-vehicle sensors
                 input_transforms = self.input_spawns[index]
                 
-                # Load context data
                 context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices = readPixelSplatCamera(
-                    input_transforms, resolution=self.view_sampler.cfg.input_context_resolution, 
+                    input_transforms, resolution=self.view_sampler.cfg.input_context_resolution,
                     near=self.cfg.z_near, far=self.cfg.z_far)
                 
-                # Filter context sensor data
                 context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices = self._filter_context_sensor_data(
                     context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices)
                 
-                #print(f"[DEBUG LOAD_INPUT] SEED4D context images to add: {len(context_image_paths)}")
-                
-                # Store context data
                 for image_path, intrins, extrins in zip(context_image_paths, context_intrinsics_matrices, context_extrinsics_matrices):
                     self.all_texture_context[example_id].append(image_path)
                     self.intrinsics_context[example_id].append(intrins)
                     self.extrinsics_context[example_id].append(extrins)
                 
-                #print(f"[DEBUG LOAD_INPUT] After SEED4D - Total context images: {len(self.all_texture_context[example_id])}")
-                
-                # ============ MODIFIED: Load nuScenes context images for ego-exo-mixed-domain ============
-                if self.cfg.experiment in ('ego-exo-mixed-domain', 
-                               'ego-ego-nuscenes', 
+                # ~~~ ego-exo-mixed-domain / ego-ego-nuscenes / ego-exo-nuscenes ~~~
+                # For mixed-domain experiments, augment the CARLA context with a randomly
+                # sampled nuScenes frame so the model sees both synthetic and real data
+                # within the same context window
+                if self.cfg.experiment in ('ego-exo-mixed-domain',
+                               'ego-ego-nuscenes',
                                'ego-exo-nuscenes'):
-                    #print(f"[DEBUG LOAD_INPUT] Attempting to load nuScenes for ego-exo-mixed-domain")
-                    #print(f"[DEBUG LOAD_INPUT] Available nuScenes samples: {len(self.nuscene_samples)}")
                     
-                    # Load nuScenes frames for ALL stages (train/val/test)
                     if len(self.nuscene_samples) > 0:
                         nuscene_sample_token = random.choice(self.nuscene_samples)
                         self.nuscene_token_per_example[example_id] = nuscene_sample_token
-                        #print(f"[DEBUG LOAD_INPUT] Selected nuScenes token: {nuscene_sample_token}")
                         
                         nuscene_frame_data = self._load_nuscene_frame_data(nuscene_sample_token)
                         
-                        #print(f"[DEBUG LOAD_INPUT] Stage {self.stage}: Loading {len(nuscene_frame_data)} nuScenes context views for example {example_id}")
                         if nuscene_frame_data:
                             print(f"[DEBUG LOAD_INPUT] Sample nuScenes context image path: {nuscene_frame_data[0]['image_path']}")
                         
-                        # Store nuScenes context data
                         nuscene_context_count = 0
-                        sample_data_tokens_for_example = [] 
+                        sample_data_tokens_for_example = []
                         for frame_data in nuscene_frame_data:
                             self.all_texture_context[example_id].append(frame_data['image_path'])
                             self.intrinsics_context[example_id].append(frame_data['intrinsic'])
                             self.extrinsics_context[example_id].append(frame_data['extrinsic'])
-                            sample_data_tokens_for_example.append(frame_data['sample_data_token']) 
+                            sample_data_tokens_for_example.append(frame_data['sample_data_token'])
                             nuscene_context_count += 1
-                            #print(f"[DEBUG LOAD_INPUT]   Added nuScenes image {nuscene_context_count}: {frame_data['image_path']}")
 
                         self.nuscene_sample_data_tokens_per_example[example_id] = sample_data_tokens_for_example
                         
-                        # Create mapping from image path to sample_data token for easy lookup during depth loading
                         for frame_data in nuscene_frame_data:
                             self.nuscene_path_to_token[frame_data['image_path']] = frame_data['sample_data_token']
-                        
-                        #print(f"[DEBUG LOAD_INPUT] Added {nuscene_context_count} nuScenes images to context views")
-                        #print(f"[DEBUG LOAD_INPUT] Total context views after nuScenes: {len(self.all_texture_context[example_id])}")
                     else:
                         print(f"[DEBUG LOAD_INPUT WARNING] No nuScenes samples available for stage {self.stage}")
-                else:
-                    print(f"[DEBUG LOAD_INPUT] Skipping nuScenes - experiment is '{self.cfg.experiment}', not 'ego-exo-mixed-domain'")
-                # =======================================================================================
+                # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
                 
                 self.intrinsics_context[example_id] = torch.stack(self.intrinsics_context[example_id]).cpu()
                 self.extrinsics_context[example_id] = torch.stack(self.extrinsics_context[example_id]).cpu()
-                
-                #print(f"[DEBUG LOAD_INPUT] Final context views shape for {example_id}: {self.intrinsics_context[example_id].shape}")
-                #print(f"[DEBUG LOAD_INPUT] All context image paths for this example:")
-                for idx, path in enumerate(self.all_texture_context[example_id]):
-                    is_nuscene = 'nuscenes' in path.lower() and 'samples' in path
-                    #print(f"[DEBUG LOAD_INPUT]   [{idx}] {'[NUSCENES]' if is_nuscene else '[SEED4D]  '} {path}")
-                #print(f"[DEBUG LOAD_INPUT] ====================================\n")
         
-        return None  # Just for the list comprehension
-    # ======================================================================
+        return None
 
-    # ============ FIXED: Modified load_output_example_id method ============
     def load_output_example_id(self, index):
         """Load and cache output/target data"""
         example_id = self.get_output_example_id(index)
@@ -596,319 +505,238 @@ class Dataset_SEED4D(Dataset):
             self.intrinsics_target[example_id] = []
             self.extrinsics_target[example_id] = []
             
-            #print(f"[DEBUG LOAD_OUTPUT] Processing example_id: {example_id}")
-            
-            # ============ NEW: Check if this is a nuScenes token ============
             if self._is_nuscene_token(example_id):
-                #print(f"[DEBUG LOAD_OUTPUT] Loading nuScenes sample token: {example_id}")
-                
-                # Use existing _load_nuscene_frame_data method
                 frame_information = self._load_nuscene_frame_data(example_id)
                 
-                # For ego-ego-nuscenes: target is the same 6 cameras
-                # For ego-exo-nuscenes: you might need to add SEED4D sphere views here
-                
-                # Extract data from frame_information
                 for frame_data in frame_information:
                     self.all_texture_target[example_id].append(frame_data['image_path'])
                     self.intrinsics_target[example_id].append(frame_data['intrinsic'])
                     self.extrinsics_target[example_id].append(frame_data['extrinsic'])
-                    
-                    # Store path to token mapping for depth loading
                     self.nuscene_path_to_token[frame_data['image_path']] = frame_data['sample_data_token']
                 
-                # Stack tensors
                 self.intrinsics_target[example_id] = torch.stack(self.intrinsics_target[example_id]).cpu()
                 self.extrinsics_target[example_id] = torch.stack(self.extrinsics_target[example_id]).cpu()
-                
-                #print(f"[DEBUG LOAD_OUTPUT] Loaded {len(self.all_texture_target[example_id])} nuScenes target views")
-                #print(f"[DEBUG LOAD_OUTPUT] Target intrinsics shape: {self.intrinsics_target[example_id].shape}")
-                #print(f"[DEBUG LOAD_OUTPUT] Target extrinsics shape: {self.extrinsics_target[example_id].shape}")
             
             elif self.stage == 'train' or self.stage == 'val' or self.stage == 'test':
-                # ============ EXISTING SEED4D LOADING LOGIC ============
-                ###ego-ego/ego-exo mixed training only
+                # ~~~ ego-exo-mixed ~~~
                 if self.cfg.experiment == 'ego-exo-mixed':
-                #if os.path.isdir(example_id): ##can be deleted if its running
-                    # For training stage, load BOTH exo and ego views for each spawn point
-                    
-                    # Load exo views (sphere_invisible)
                     exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_train.json'
                     exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices = readPixelSplatCamera(
-                        exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
+                        exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution,
                         near=self.cfg.z_near, far=self.cfg.z_far)
                     
                     print(f"Stage {self.stage}: Loading {len(exo_image_paths)} EXO target views from {exo_transforms}")
                     
-                    # Store exo data
                     for image_path, intrins, extrins in zip(exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices):
                         self.all_texture_target[example_id].append(image_path)
                         self.intrinsics_target[example_id].append(intrins)
                         self.extrinsics_target[example_id].append(extrins)
                     
-                    # Load ego views (nuscenes_invisible)
                     ego_transforms = example_id + '/nuscenes_invisible/transforms/transforms_ego.json'
                     ego_image_paths, ego_intrinsics_matrices, ego_extrinsics_matrices = readPixelSplatCamera(
-                        ego_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
+                        ego_transforms, resolution=self.view_sampler.cfg.output_target_resolution,
                         near=self.cfg.z_near, far=self.cfg.z_far)
                     
-                    # Filter ego sensor data using selected sensor indices
-                    filtered_ego_image_paths = [ego_image_paths[i] for i in self.sensor_indices] #uncommented since only sensors 0-5 are generated
-                    filtered_ego_intrinsics = ego_intrinsics_matrices[self.sensor_indices] #uncommented since only sensors 0-5 are generated
-                    filtered_ego_extrinsics = ego_extrinsics_matrices[self.sensor_indices] #uncommented since only sensors 0-5 are generated
-
-                    print(f"Stage {self.stage}: Filtered to {len(filtered_ego_image_paths)} EGO views using sensor indices {self.sensor_indices}")
-
-                    # Store filtered ego data 
-                    for _ in range(3): # Repeat 3 times to balance ego and exo views
-                        for image_path, intrins, extrins in zip(filtered_ego_image_paths, filtered_ego_intrinsics, filtered_ego_extrinsics):
-                            self.all_texture_target[example_id].append(image_path)
-                            self.intrinsics_target[example_id].append(intrins)
-                            self.extrinsics_target[example_id].append(extrins)
-
-                elif self.cfg.experiment == 'ego-exo-nuscenes':
-                    # For ego-exo-nuscenes / ego-exo-nuscenes-scene: only load sphere views as target
-                    # Context is handled separately with nuScenes token
-                    #print(f"[DEBUG] Loading ego-exo-nuscenes target data for {example_id}")
-                    
-                    exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_train.json'
-                    #exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' #changes for BEV
-                    exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices = readPixelSplatCamera(
-                        exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
-                        near=self.cfg.z_near, far=self.cfg.z_far)
-                    
-                    print(f"Stage {self.stage}: Loading {len(exo_image_paths)} EXO target views (sphere) for {self.cfg.experiment}")
-                    
-                    # Store exo sphere views only
-                    for image_path, intrins, extrins in zip(exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices):
-                        self.all_texture_target[example_id].append(image_path)
-                        self.intrinsics_target[example_id].append(intrins)
-                        self.extrinsics_target[example_id].append(extrins)
-
-                elif self.cfg.experiment == 'ego-exo-nuscenes-scene': 
-                    # For ego-exo-nuscenes / ego-exo-nuscenes-scene: only load sphere views as target
-                    # Context is handled separately with nuScenes token
-                    #print(f"[DEBUG] Loading ego-exo-nuscenes target data for {example_id}")
-                    
-                    exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego.json'
-                    exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices = readPixelSplatCamera(
-                        exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
-                        near=self.cfg.z_near, far=self.cfg.z_far)
-                    
-                    print(f"Stage {self.stage}: Loading {len(exo_image_paths)} EXO target views (sphere) for {self.cfg.experiment}")
-                    
-                    # Store exo sphere views only
-                    for image_path, intrins, extrins in zip(exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices):
-                        self.all_texture_target[example_id].append(image_path)
-                        self.intrinsics_target[example_id].append(intrins)
-                        self.extrinsics_target[example_id].append(extrins)
-
-                elif self.cfg.experiment in ('ego-exo-mixed-domain', 
-                           'ego-ego-nuscenes'):
-                    # Load exo views (sphere_invisible)
-                    #print(f"[DEBUG] Loading ego-exo-mixed-domain data for {example_id}")
-                    #print(f"[DEBUG] Stage: {self.stage}")
-                    #print(f"[DEBUG] Number of nuScenes samples available: {len(self.nuscene_samples)}")
-            
-                    exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_train.json'
-                    exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices = readPixelSplatCamera(
-                        exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
-                        near=self.cfg.z_near, far=self.cfg.z_far)
-                    
-                    print(f"Stage {self.stage}: Loading {len(exo_image_paths)} EXO target views from {exo_transforms}")
-                    
-                    # Store exo data
-                    for image_path, intrins, extrins in zip(exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices):
-                        self.all_texture_target[example_id].append(image_path)
-                        self.intrinsics_target[example_id].append(intrins)
-                        self.extrinsics_target[example_id].append(extrins)
-                    
-                    # Load ego views (nuscenes_invisible)
-                    ego_transforms = example_id + '/nuscenes_invisible/transforms/transforms_ego.json'
-                    ego_image_paths, ego_intrinsics_matrices, ego_extrinsics_matrices = readPixelSplatCamera(
-                        ego_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
-                        near=self.cfg.z_near, far=self.cfg.z_far)
-                    
-                    # Filter ego sensor data using selected sensor indices
                     filtered_ego_image_paths = [ego_image_paths[i] for i in self.sensor_indices]
                     filtered_ego_intrinsics = ego_intrinsics_matrices[self.sensor_indices]
                     filtered_ego_extrinsics = ego_extrinsics_matrices[self.sensor_indices]
 
                     print(f"Stage {self.stage}: Filtered to {len(filtered_ego_image_paths)} EGO views using sensor indices {self.sensor_indices}")
 
-                    # Store filtered ego data 
-                    for _ in range(3): # Repeat 3 times to balance ego and exo views
+                    # Repeat ego views 3x to balance their count against the larger set of exo views
+                    for _ in range(3):
                         for image_path, intrins, extrins in zip(filtered_ego_image_paths, filtered_ego_intrinsics, filtered_ego_extrinsics):
                             self.all_texture_target[example_id].append(image_path)
                             self.intrinsics_target[example_id].append(intrins)
                             self.extrinsics_target[example_id].append(extrins)
 
-                    # ============ ADDED: Load nuScenes images ============
+                # ~~~ ego-exo-nuscenes ~~~
+                elif self.cfg.experiment == 'ego-exo-nuscenes':
+                    exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_train.json'
+                    #exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' #changes for BEV
+                    exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices = readPixelSplatCamera(
+                        exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution,
+                        near=self.cfg.z_near, far=self.cfg.z_far)
+                    
+                    print(f"Stage {self.stage}: Loading {len(exo_image_paths)} EXO target views (sphere) for {self.cfg.experiment}")
+                    
+                    for image_path, intrins, extrins in zip(exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices):
+                        self.all_texture_target[example_id].append(image_path)
+                        self.intrinsics_target[example_id].append(intrins)
+                        self.extrinsics_target[example_id].append(extrins)
+
+                # ~~~ ego-exo-nuscenes-scene ~~~
+                elif self.cfg.experiment == 'ego-exo-nuscenes-scene':
+                    exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego.json'
+                    exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices = readPixelSplatCamera(
+                        exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution,
+                        near=self.cfg.z_near, far=self.cfg.z_far)
+                    
+                    print(f"Stage {self.stage}: Loading {len(exo_image_paths)} EXO target views (sphere) for {self.cfg.experiment}")
+                    
+                    for image_path, intrins, extrins in zip(exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices):
+                        self.all_texture_target[example_id].append(image_path)
+                        self.intrinsics_target[example_id].append(intrins)
+                        self.extrinsics_target[example_id].append(extrins)
+
+                # ~~~ ego-exo-mixed-domain / ego-ego-nuscenes ~~~
+                elif self.cfg.experiment in ('ego-exo-mixed-domain',
+                           'ego-ego-nuscenes'):
+                    exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_train.json'
+                    exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices = readPixelSplatCamera(
+                        exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution,
+                        near=self.cfg.z_near, far=self.cfg.z_far)
+                    
+                    print(f"Stage {self.stage}: Loading {len(exo_image_paths)} EXO target views from {exo_transforms}")
+                    
+                    for image_path, intrins, extrins in zip(exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices):
+                        self.all_texture_target[example_id].append(image_path)
+                        self.intrinsics_target[example_id].append(intrins)
+                        self.extrinsics_target[example_id].append(extrins)
+                    
+                    ego_transforms = example_id + '/nuscenes_invisible/transforms/transforms_ego.json'
+                    ego_image_paths, ego_intrinsics_matrices, ego_extrinsics_matrices = readPixelSplatCamera(
+                        ego_transforms, resolution=self.view_sampler.cfg.output_target_resolution,
+                        near=self.cfg.z_near, far=self.cfg.z_far)
+                    
+                    filtered_ego_image_paths = [ego_image_paths[i] for i in self.sensor_indices]
+                    filtered_ego_intrinsics = ego_intrinsics_matrices[self.sensor_indices]
+                    filtered_ego_extrinsics = ego_extrinsics_matrices[self.sensor_indices]
+
+                    print(f"Stage {self.stage}: Filtered to {len(filtered_ego_image_paths)} EGO views using sensor indices {self.sensor_indices}")
+
+                    # Repeat ego views 3x to balance their count against the larger set of exo views
+                    for _ in range(3):
+                        for image_path, intrins, extrins in zip(filtered_ego_image_paths, filtered_ego_intrinsics, filtered_ego_extrinsics):
+                            self.all_texture_target[example_id].append(image_path)
+                            self.intrinsics_target[example_id].append(intrins)
+                            self.extrinsics_target[example_id].append(extrins)
+
+                    # Append nuScenes target views using the same sample token that was paired
+                    # with this CARLA example during input loading, ensuring context/target alignment
                     if len(self.nuscene_samples) > 0:
                         assert example_id in self.nuscene_token_per_example, \
                             f"Token should exist for {example_id} - load_input_example_id should run first"
                         nuscene_sample_token = self.nuscene_token_per_example[example_id]
                         
                         nuscene_frame_data = self._load_nuscene_frame_data(nuscene_sample_token)
-                        # Filter nuScenes data using selected sensor indices
-                        filtered_nuscene_data = nuscene_frame_data #[nuscene_frame_data[i] for i in self.sensor_indices]
-                        print(f"Stage {self.stage}: Loading {len(filtered_nuscene_data)} nuScenes target views")
-                        #print(f"[DEBUG] Sample nuScenes image path: {filtered_nuscene_data[0]['image_path'] if filtered_nuscene_data else 'None'}")
-                
-                        
+                        filtered_nuscene_data = nuscene_frame_data
                         print(f"Stage {self.stage}: Loading {len(filtered_nuscene_data)} nuScenes target views")
                         
-                        # Store filtered nuScenes data
                         for frame_data in filtered_nuscene_data:
                             self.all_texture_target[example_id].append(frame_data['image_path'])
                             self.intrinsics_target[example_id].append(frame_data['intrinsic'])
                             self.extrinsics_target[example_id].append(frame_data['extrinsic'])
 
-                        #print(f"[DEBUG] Total target views: {len(self.all_texture_target[example_id])}")
-            
-                    # =====================================================
-                
-                ###ego-exo training only
+                # ~~~ ego-exo ~~~
                 elif self.cfg.experiment == 'ego-exo':
                     output_transforms = self.output_spawns[index]
-                    print(f"[DEBUG ego-exo] output_transforms = {output_transforms}") 
+                    print(f"[DEBUG ego-exo] output_transforms = {output_transforms}")
                     target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(
-                    output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
-                    near=self.cfg.z_near, far=self.cfg.z_far)
+                        output_transforms, resolution=self.view_sampler.cfg.output_target_resolution,
+                        near=self.cfg.z_near, far=self.cfg.z_far)
                 
                     print(f"Stage {self.stage}: Loading {len(target_image_paths)} target views from {output_transforms}")
                 
-                    ### no filtering happens here, can be deleted
-                    # Filter target sensor data using selected sensor indices, only when testing ego-ego generation
-                    filtered_target_image_paths = target_image_paths #[target_image_paths[i] for i in self.sensor_indices]
-                    filtered_target_intrinsics = target_intrinsics_matrices #target_intrinsics_matrices[self.sensor_indices]
-                    filtered_target_extrinsics = target_extrinsics_matrices #target_extrinsics_matrices[self.sensor_indices]
+                    filtered_target_image_paths = target_image_paths
+                    filtered_target_intrinsics = target_intrinsics_matrices
+                    filtered_target_extrinsics = target_extrinsics_matrices
                     
-                    #print(f"Stage {self.stage}: Filtered to {len(filtered_target_image_paths)} target views using sensor indices {self.sensor_indices}")
-                    
-                    # Store filtered target data
                     for image_path, intrins, extrins in zip(filtered_target_image_paths, filtered_target_intrinsics, filtered_target_extrinsics):
                         self.all_texture_target[example_id].append(image_path)
                         self.intrinsics_target[example_id].append(intrins)
-                        self.extrinsics_target[example_id].append(extrins)   
-                
-                elif self.cfg.experiment == 'ego-ego': 
+                        self.extrinsics_target[example_id].append(extrins)
+
+                # ~~~ ego-ego ~~~
+                elif self.cfg.experiment == 'ego-ego':
                     output_transforms = self.output_spawns[index]
                     target_image_paths, target_intrinsics_matrices, target_extrinsics_matrices = readPixelSplatCamera(
-                    output_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
-                    near=self.cfg.z_near, far=self.cfg.z_far)
+                        output_transforms, resolution=self.view_sampler.cfg.output_target_resolution,
+                        near=self.cfg.z_near, far=self.cfg.z_far)
                 
                     print(f"Stage {self.stage}: Loading {len(target_image_paths)} target views from {output_transforms}")
                 
-                    # Filter target sensor data using selected sensor indices, only when testing ego-ego generation
                     filtered_target_image_paths = [target_image_paths[i] for i in self.sensor_indices]
                     filtered_target_intrinsics = target_intrinsics_matrices[self.sensor_indices]
                     filtered_target_extrinsics = target_extrinsics_matrices[self.sensor_indices]
                     
                     print(f"Stage {self.stage}: Filtered to {len(filtered_target_image_paths)} target views using sensor indices {self.sensor_indices}")
                     
-                    # Store filtered target data
                     for image_path, intrins, extrins in zip(filtered_target_image_paths, filtered_target_intrinsics, filtered_target_extrinsics):
                         self.all_texture_target[example_id].append(image_path)
                         self.intrinsics_target[example_id].append(intrins)
                         self.extrinsics_target[example_id].append(extrins)
                 
-                # Stack tensors for SEED4D experiments (nuScenes tokens already stacked above)
                 self.intrinsics_target[example_id] = torch.stack(self.intrinsics_target[example_id]).cpu()
                 self.extrinsics_target[example_id] = torch.stack(self.extrinsics_target[example_id]).cpu()
-                #print(f"[DEBUG] Final stacked target views shape: {self.intrinsics_target[example_id].shape}")
             else:
                 assert False, "Experiment is not set properly"
         
-        return None  # Just for the list comprehension
-    # ======================================================================
+        return None
+
     def __getitem__(self, index):
         input_example_id = self.get_input_example_id(index)
         output_example_id = self.get_output_example_id(index)
 
-        if self.cfg.experiment == 'ego-ego-nuscenes' or self.cfg.experiment == 'ego-exo-nuscenes' or self.cfg.experiment == 'ego-exo-nuscenes-scene':
+        # Determine whether this batch item should use nuScenes data for the context/target.
+        # For mixed-domain training, only 1 in 50 samples switches to nuScenes to maintain
+        # a predominantly synthetic training distribution
+        if self.cfg.experiment in ('ego-ego-nuscenes', 'ego-exo-nuscenes', 'ego-exo-nuscenes-scene'):
             use_nuscene_for_this_sample = True
         elif self.cfg.experiment == 'ego-exo-mixed-domain':
             use_nuscene_for_this_sample = (index % 50 == 0)
         else:
             use_nuscene_for_this_sample = False
 
-        
-        # view sampler needs to know context and target view extrinsics for sampling strategy
-        index_context, index_target = self.view_sampler.sample("SEED", 
-                                                               self.extrinsics_context[input_example_id], 
+        index_context, index_target = self.view_sampler.sample("SEED",
+                                                               self.extrinsics_context[input_example_id],
                                                                self.extrinsics_target[output_example_id],
                                                                experiment=self.cfg.experiment,
                                                                use_nuscene_context=use_nuscene_for_this_sample)
         
-        #######################################################################
-        #
-        #######################################################################
-        ############### Loading Context/Conditional Information ###############
         context_images = [img_path_to_Torch(image_path, self.context_resolution)
                           for image_path in np.array(self.all_texture_context[input_example_id])[index_context.numpy()]]
         context_images = torch.stack(context_images).float()
         context_extrinsics = self.extrinsics_context[input_example_id][index_context.numpy()]
         context_intrinsics = self.intrinsics_context[input_example_id][index_context.numpy()]
-        #context_extrinsics = self.extrinsics_context[input_example_id][index_context.numpy()].clone()
-        #context_intrinsics = self.intrinsics_context[input_example_id][index_context.numpy()].clone()
         
-        
-        #######################################################################
-        ################ Loading Inference Target Information #################
-        
-        # Add bounds checking before accessing target images
+        # Guard against view sampler returning indices beyond the cached target view count,
+        # which can happen when nuScenes and CARLA targets differ in cardinality
         max_available_views = len(self.all_texture_target[output_example_id])
         if any(idx >= max_available_views for idx in index_target.numpy()):
             print(f"Warning: Requested indices {index_target.numpy()} exceed available views ({max_available_views}) for {output_example_id}")
-            # Clamp indices to valid range
             index_target = torch.clamp(index_target, 0, max_available_views - 1)
             print(f"Clamped indices to: {index_target.numpy()}")
         
-        # Reading images
-        '''print('index_target.numpy()', index_target.numpy())
-        print('output_example_id', output_example_id)
-        print('len self.all_texture_target[output_example_id]', len(self.all_texture_target[output_example_id]))'''
-
         target_images = [img_path_to_Torch(image_path, self.target_resolution)
                          for image_path in np.array(self.all_texture_target[output_example_id])[index_target.numpy()]]
         target_images = torch.stack(target_images).float()
         
-        # Reading depth maps - need to handle both SEED4D and nuScenes paths
+        # Load depth maps for each target view. nuScenes targets use precomputed Depth-Anything-3
+        # .npy files (scaled by 1/100 to convert cm→m); SEED4D targets use paired _depth.png files
         target_depths = []
         for image_path in np.array(self.all_texture_target[output_example_id])[index_target.numpy()]:
-            # Check if this is an actual nuScenes dataset path (contains '/samples/' directory)
-            # NOT SEED4D paths that contain 'nuscenes_invisible'
             if '/samples/' in image_path and 'nuscenes_full' in image_path:
-                # Real nuScenes image - try to load depth from .npy file
                 if image_path in self.nuscene_path_to_token:
                     sample_data_token = self.nuscene_path_to_token[image_path]
                     
                     if self.stage == 'train' or self.stage == 'val':
-                        depth_file_path = f'/app/felix/data/depth_anything3/nuscenes_depth_trainval_800/{sample_data_token}_depth.npy' #_DA3METRIC-LARGE
-                        #print('Found Nuscenes depth file path for train/val:', depth_file_path)
+                        depth_file_path = f'/app/felix/data/depth_anything3/nuscenes_depth_trainval_800/{sample_data_token}_depth.npy'
                     else:
-                        depth_file_path = f'/app/felix/data/depth_anything3/nuscenes_depth_test_800/{sample_data_token}_depth.npy' #_DA3METRIC-LARGE
-                        #print('Found Nuscenes depth file path for test:', depth_file_path)
+                        depth_file_path = f'/app/felix/data/depth_anything3/nuscenes_depth_test_800/{sample_data_token}_depth.npy'
                     
                     if os.path.exists(depth_file_path):
-                        # Load depth from .npy file
                         depth_npy = np.load(depth_file_path)
-                        depth_meters = depth_npy.astype(np.float32) /100.0 #scaling for Depth images generated with DA3GIANT-LARGE
+                        depth_meters = depth_npy.astype(np.float32) / 100.0
                         depth_tensor = torch.from_numpy(depth_meters).float()
                         depth_tensor = depth_tensor.unsqueeze(0).unsqueeze(0)
                         depth_upscaled = F.interpolate(depth_tensor, size=self.target_resolution, mode='nearest')
                         depth = depth_upscaled.squeeze(0).squeeze(0)
                     else:
-                        # Depth file missing for nuScenes
-                        #print(f"Warning: Depth file not found: {depth_file_path}")
                         depth = torch.zeros(self.target_resolution, dtype=torch.float32)
                 else:
-                    # Can't find token mapping
-                    #print(f"Warning: Could not find sample_data token for image {image_path}")
                     depth = torch.zeros(self.target_resolution, dtype=torch.float32)
             else:
-                # SEED4D image (including nuscenes_invisible folder) - load regular depth file
                 depth_path = image_path[:image_path.rfind('_')] + "_depth.png"
                 if os.path.exists(depth_path):
                     depth = depth_path_to_Torch(depth_path, self.target_resolution)
@@ -919,16 +747,10 @@ class Dataset_SEED4D(Dataset):
             target_depths.append(depth)
         
         target_depths = torch.stack(target_depths).float()
-        
 
-        # Reading Camera params
         target_extrinsics = self.extrinsics_target[output_example_id][index_target.numpy()]
         target_intrinsics = self.intrinsics_target[output_example_id][index_target.numpy()]
-        #target_extrinsics = self.extrinsics_target[output_example_id][index_target.numpy()].clone()
-        #target_intrinsics = self.intrinsics_target[output_example_id][index_target.numpy()].clone()
         
-        #######################################################################
-        #######################################################################
         example = {
                     "context": {
                         "extrinsics": context_extrinsics,
@@ -956,41 +778,24 @@ class Dataset_SEED4D(Dataset):
                                else "Carla"),
                     "dataset_change": use_nuscene_for_this_sample}
 
-
-        '''print("=== FINAL DATA FED TO MODEL ===")
-        print('context_resolution:', self.context_resolution) ###DEBUG
-        print('context_resolution[0]:', self.context_resolution[0]) ###DEBUG
-        print(f"Resolution: {self.view_sampler.cfg.output_target_resolution}")
-        print(f"Index target: {index_target.numpy()}")
-        print(f"Target intrinsics shape: {self.intrinsics_target[output_example_id].shape}")
-
-        print("Context intrinsics shape:", example['context']['intrinsics'].shape)
-        print("Context intrinsics:\n", example['context']['intrinsics'])
-        print("Context extrinsics shape:", example['context']['extrinsics'].shape)
-        print("Context extrinsics:\n", example['context']['extrinsics'])
-        print("Target intrinsics shape:", example['target']['intrinsics'].shape) 
-        print("Target intrinsics:\n", example['target']['intrinsics'])
-        print("Target extrinsics shape:", example['target']['extrinsics'].shape)
-        print("Target extrinsics:\n", example['target']['extrinsics'])
-        print("="*50)  '''       
         return example
         
-################################################################################################
-##################### Extra functions for processing files and directories #####################
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ File and directory utilities ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 def str_list_concat(pre_string, folders_dir, post_string):
     list_dirs = os.listdir(folders_dir)
     return [pre_string + directory + '/' + post_string for directory in list_dirs]
 
-# copied from https://stackoverflow.com/questions/1883980/find-the-nth-occurrence-of-substring-in-a-string
 def find_nth_reverse(haystack: str, needle: str, n: int) -> int:
+    # copied from https://stackoverflow.com/questions/1883980/find-the-nth-occurrence-of-substring-in-a-string
     end = haystack.rfind(needle)
     while end >= 0 and n > 1:
         end = haystack.rfind(needle, 0, end - len(haystack))
         n -= 1
     return end
 
-# ============ ADDED HELPER FUNCTIONS FROM dataset_nuScene.py ============
 def apply_coordinate_transformation(position):
     """
     Apply coordinate transformation:
@@ -1002,31 +807,23 @@ def apply_coordinate_transformation(position):
     return np.array([-z_old, x_old, -y_old])
 
 def apply_rotation_transformation(quaternion):
-    """
-    Apply rotation transformation to match the coordinate system change
-    """
-    # Convert to rotation matrix
+    """Apply rotation transformation to match the coordinate system change."""
     rotation_matrix = quaternion.rotation_matrix
     
-    # Transformation matrix
+    # Transformation matrix T aligns nuScenes/CARLA axes to PixelSplat's expected coordinate frame
     T = np.array([
         [ 0,  0, -1],
         [ 1,  0,  0],
         [ 0, -1,  0]
     ])
     
-    # Apply transformation: R_new = T * R_old
     transformed_rotation_matrix = T @ rotation_matrix
-    
-    # Convert back to quaternion
     transformed_quaternion = Quaternion(matrix=transformed_rotation_matrix)
     
     return transformed_quaternion
 
 def quaternion_to_transform_matrix(quaternion, translation):
-    """
-    Convert quaternion and translation to 4x4 transformation matrix
-    """
+    """Convert quaternion and translation to 4x4 transformation matrix."""
     rotation_matrix = quaternion.rotation_matrix
     transform_matrix = np.eye(4)
     transform_matrix[:3, :3] = rotation_matrix
@@ -1038,28 +835,26 @@ def transform_matrix(translation: np.ndarray = np.array([0, 0, 0]),
                      inverse: bool = False) -> np.ndarray:
     """
     Convert pose to transformation matrix.
-    new transformation to match the format pixelsplat was trained on (format of seed4d/carla generator)
+    New transformation to match the format pixelsplat was trained on (format of seed4d/carla generator).
     """
-
-    # Apply x-axis flip
+    # Flip the x-axis to convert from nuScenes (right-handed, z-up) to PixelSplat's camera convention
     x_axis_flip = Quaternion(axis=[1, 0, 0], angle=np.pi)
     original_quaternion = rotation * x_axis_flip
         
-    # Apply coordinate transformation
     transformed_translation = apply_coordinate_transformation(translation)
     transformed_quaternion = apply_rotation_transformation(original_quaternion)
         
-    # Create transformation matrix
     transformed_transform_matrix = quaternion_to_transform_matrix(
         transformed_quaternion, transformed_translation
     )
 
-    transformed_transform_matrix[0,1] *= -1  
-    transformed_transform_matrix[0,2] *= -1
-    transformed_transform_matrix[1,1] *= -1
-    transformed_transform_matrix[1,2] *= -1
-    transformed_transform_matrix[2,1] *= -1
-    transformed_transform_matrix[2,2] *= -1
+    # Negate columns 1 and 2 of the rotation block to finalize the camera-convention alignment
+    # (equivalent to flipping the y and z axes of the camera frame)
+    transformed_transform_matrix[0, 1] *= -1
+    transformed_transform_matrix[0, 2] *= -1
+    transformed_transform_matrix[1, 1] *= -1
+    transformed_transform_matrix[1, 2] *= -1
+    transformed_transform_matrix[2, 1] *= -1
+    transformed_transform_matrix[2, 2] *= -1
 
     return transformed_transform_matrix
-# ========================================================================

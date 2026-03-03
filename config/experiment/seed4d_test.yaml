@@ -1,101 +1,33 @@
 # @package _global_
 
 defaults:
-  - override /dataset: seed4d #nuscene #
+  - override /dataset: seed4d #nuscene 
   - override /model/encoder: epipolar
   - override /model/encoder/backbone: dino
-  - override /loss: [mse, lpips] #[mse, lpips, mae] #  
+  - override /loss: [mse, lpips] #[mse, lpips, mae] 
 
 wandb:
   name: seed
-  tags: [seed, 128x128] #[seed, 256x256] #[seed, 128x128]
+  tags: [seed, 128x128] 
   mode: offline
 
 dataset:
-  image_shape: [192, 192] #[256, 256] #[128, 128] # [128, 128]  # 
-  roots: [datasets/seed4d] #[datasets/nuscene] # #
+  image_shape: [128, 128] 
+  roots: [datasets/seed4d] 
   training_towns: ['01','03','04','05','06','07', '10HD']  # Configure training towns here #training_towns = ['01','03','04','05','06','07', '10HD']
   testing_towns: ['02']   # Configure testing towns here
   selected_sensors: [0, 1, 2, 3, 4, 5] #[0, 1, 2, 3, 4, 5] # List of sensor indices to use (0-6 based on transforms_ego.json)
-  experiment: ego-ego-nuscenes #-scene #xo-nuscenes-scene #exo-mixed-domain #ego-nuscenes #ego-exo-mixed #ego-ego # ego-exo-nuscenes 
+  experiment: ego-ego-nuscenes #see dataloader for available experiments: dataset_seed4d.py
   #nuscene_scene_index: [0, 15, 50, 90, 120, 130] #nuscene scene to test if experiment = 'ego-exo-nuscenes-scene' 
 
 data_loader:
   train:
-    batch_size: 2 # 7 
+    batch_size: 2 
 
 test:
   depth_mode: depth
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-eval_ego-exo_SEED4D_new #1
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_SEED4D_new #2
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_SEED4D_new #3
-
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-eval_ego-exo_Nuscene_new_check_setup_delete #1
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_Nuscene_new #2
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_Nuscene_new_test_loader #2
-
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment10_setup_test #6
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment7 #7
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_SEED4D_experiment8 #8  #broken
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment9 #9  #broken
-
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_2percent_Nus_seedloader #3
-
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment10 #10
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_SEED4D_experiment11_test #11
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment12 #_ckpt_180k #12
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment13_ckpt_180k #13
-
-
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment14_correct_rel_loss_metric #14
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment15 #15
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment16_depth_giant_large #16
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_experiment17 #17
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_experiment18 #18
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_experiment19 #19
-
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment26 #26
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_SEED4D_experiment27 #27
-
-
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_SEED4D_modelvar_1C_epoch630 #1C
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_SEED4D_modelvar_1F_epoch630 #1F
-  output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_1S_epoch268 #1S
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_2C_epoch1260 #2C
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_2F_epoch1260 #2F
-
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_3 #3
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_4 #4
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_5 #5
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_6 #6
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_7 #7
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_8 #8
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_9 #9
-
-  #BEV
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_BEV_SEED4D-eval_ego-exo_Nuscenes_80k
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/BEV_SEED4D_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_BEV_flux2-eval_ego-exo_Nuscenes_80k
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/BEV_flux2_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/BEV_secogan_Nuscenes
-
-  #Generate Gif: 
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_16_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_18_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/Experiment_19_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_12_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_0_Nuscenes_new
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_III_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_initial_eyvaz_Nuscenes
-
-  #Big input 192x192
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_16_192x192_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_18_192x192_Nuscenes_epoch268
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_19_192x192_Nuscenes
-
-  #rerun to get proper DRMSE values
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training-eval_ego-exo_SEED4D_experiment0_base #0
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training-eval_ego-ego_SEED4D_experimentIII_new #II
+  
+  output_path: /app/outputs/pixelsplat 
 
   compute_scores: true
 

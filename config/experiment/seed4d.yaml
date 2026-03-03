@@ -8,20 +8,20 @@ defaults:
 
 wandb:
   name: seed
-  tags: [seed, 128x128] #[seed, 256x256]
-  mode: online #offline #change this back once proxy issue is solved
+  tags: [seed, 128x128] 
+  mode: online #offline #set to offline if there is a proxy issue
 
 dataset:
-  image_shape: [192, 192] #[128, 128] #[256, 256]
+  image_shape: [128, 128] 
   roots: [datasets/seed4d]
   training_towns: ['01','03','04','05','06','07', '10HD']  # Configure training towns here #training_towns = ['01','03','04','05','06','07', '10HD']
   testing_towns: ['02']   # Configure testing towns here
-  selected_sensors: [0, 1, 2, 3, 4, 5]  # List of sensor indices to use (0-6 based on transforms_ego.json)
-  experiment: ego-exo-mixed #ego-ego ### ego-exo 
+  selected_sensors: [0, 1, 2, 3, 4, 5]  # List of sensor indices to use 
+  experiment: ego-exo #see dataloader for available experiments: dataset_seed4d.py
 
 data_loader:
   train:
-    batch_size: 1 #normally with 128x128: 2 # 7 
+    batch_size: 2 #normally with 128x128: 2 
 
 trainer:
-  max_steps: 600_001
+  max_steps: 300_001

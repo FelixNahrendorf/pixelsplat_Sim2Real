@@ -1,22 +1,14 @@
 defaults:
-  #- dataset: nuscene_ego_exo
-  #- dataset: nuscene #nuscene
-  #- dataset: carla #carla
   - dataset: seed4d #seed4d
   - model/encoder: epipolar
   - model/decoder: splatting_cuda
-  #- loss: [mse, lpips] #nuscene
   - loss: [mse, mae] #seed4d/carla
 
 wandb:
-  project: pixelsplat_diverse_2poses_training #nuscene-alike-dataset 
-  #project: pixelsplat_nuScene_td1_rend1_mixed #nuscene 
-  #project: pixelsplat_mae_test_carla #carla
-  #project: pixelsplat_mae_test_seed4d #seed4d
-  #project: pixelsplat_nuscene_ego_exo #nuscene_ego_exo
+  project: pixelsplat_training 
   entity: scene-representation-group
   name: placeholder
-  mode: online #offline #online
+  mode: online 
 
 mode: test
 
@@ -46,195 +38,45 @@ optimizer:
   warm_up_steps: 2000
 
 checkpointing:
-  #checkpoint for model trained on carla
-  #load: /app/code/pixelsplat_Sim2Real/outputs/carla_ckpt_basis/2024-11-04/14-35-32/checkpoints/epoch-315-step-300000.ckpt
+  #checkpoint for model trained on carla (from eyvaz)
   #load: /app/felix/code/pixelsplat_Sim2Real/outputs/checkpoints/initial_epoch-315-step-300000.ckpt
 
-
-  #last checkpoint finetuned with ego-ego-seed4d
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-04/12-13-16/checkpoints/epoch=1504-step=420000.ckpt
-
-  #first checkpoint finetuned with ego-ego-seed4d
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-04/12-13-16/checkpoints/epoch=514-step=320000.ckpt
-
-  #checkpoint finetuned with mixed dataset 86cams
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-11/11-26-51_86_cams/checkpoints/epoch=2296-step=500000.ckpt
-
-  #checkpoint finetuned with mixed dataset 98cams
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-09-11/11-46-09 98 cams/checkpoints/epoch=2296-step=500000.ckpt
-
-
-
-#initial checkpoint from here:
-#/mnt/share03/eyvaz/sshELF_Benchmarks/pixelsplat/outputs/2024-11-04/14-35-32/checkpoints
-  #checkpoint for model trained on carla and then on nuscenes
-  #load: /app/code/pixelsplat_Sim2Real/outputs/carla_nuScenes_ckpt_basis/2024-11-08/09-31-36/checkpoints/epoch=318-step=400000.ckpt 
-
-  #different fine tuned checkpoint from eyvaz, maybe this is the one to use
-  #load: /app/nuscenes_checkpoints/2024-11-07/15-37-46/checkpoints/epoch=318-step=400000.ckpt
-
-
-
-### ckpt Experiment 1 (Diverse Ego-Exo SEED4D): 	- I Diverse dataset with all Towns generated, Trained pixelsplat with 128x128 px images ego-exo
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-10-01/15-24-55/checkpoints/epoch=631-step=300000.ckpt
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-10/09-33-06/checkpoints/epoch=1260-step=300000.ckpt #1
-
-### ckpt Experiment 2 (Diverse Mixed Ego-Exo/Ego-Ego SEED4D) - III Diverse dataset with all Towns generated, Trained pixelsplat with 128x128 px images ego-exo and ego-ego
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-10-15/00-09-22/checkpoints/epoch=631-step=300000.ckpt
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-10/09-45-38/checkpoints/epoch=1260-step=300000.ckpt #2
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/checkpoints/baseline_epoch=1260-step=300000.ckpt
-
-###ckpt Experiment 3 Baseline (as initial but with 128x128) - 0
+  #Experiment 0 Baseline 
   #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2025-10-17/11-26-47/checkpoints/epoch=1260-step=300000.ckpt
 
-###ckpt Experiment 4 (Baseline-Mixed) - II
+  #Experiment II (Baseline-Mixed) 
   #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2025-10-16/20-59-25/checkpoints/epoch=1260-step=300000.ckpt
-
-#Experiment 5 Mixed domain training
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-10-25/22-23-19/checkpoints/epoch=1260-step=300000.ckpt
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-10/15-23-00/checkpoints/epoch=1260-step=300000.ckpt #3
-
-#Experiment 5 Mixed domain training - only 2% Nuscene data
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-17/16-01-47/checkpoints/epoch=1260-step=300000.ckpt
-
-
-  #continue
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-24/23-50-04/checkpoints/epoch=840-step=200000.ckpt #training2: mae loss weight =0.1
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-24/23-20-20/checkpoints/epoch=504-step=120000.ckpt
-
-#Experiment 6 Mixed domain etc, depth loss 0.01
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-28/12-15-18/checkpoints/epoch=1260-step=300000.ckpt
-#Experiment 7 Mixed domain etc, depth loss 0.1
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-27/15-33-39/checkpoints/epoch=1260-step=300000.ckpt
-#Experiment 8 Mixed domain, mit nuscene depth, depth loss 0.01
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-28/23-50-56/checkpoints/epoch=1260-step=300000.ckpt  #broken
-#Experiment 9 Mixed domain, mit nuscene depth, depth loss 0.1
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-11-28/23-55-53/checkpoints/epoch=1260-step=300000.ckpt  #broken
-
 
   #Experiment 10
   #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-03/21-41-53/checkpoints/epoch=1260-step=300000.ckpt #10
+
   #Experiment 11
   #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-04/00-01-46/checkpoints/epoch=1260-step=300000.ckpt #11
 
-  #Experiment 12
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-09/21-35-08/checkpoints/epoch=1260-step=300000.ckpt #12
+  #Experiment 12 seed4d+nuscene ego views
   #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2025-12-09/21-35-08/checkpoints/epoch=1260-step=300000.ckpt
 
-  #Experiment 12_mid_test
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-09/21-35-08/checkpoints/epoch=756-step=180000.ckpt #12_mid
-
-  #Experiment 13_mid_test
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-11/23-24-21/checkpoints/epoch=756-step=180000.ckpt #13_mid
-
-  #Experiment 13
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-11/23-24-21/checkpoints/epoch=1260-step=300000.ckpt #13
-
-  #Experiment 14
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-17/16-58-36/checkpoints/epoch=1260-step=300000.ckpt
-
-  #Experiment 15
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2025-12-18/08-54-29/checkpoints/epoch=1260-step=300000.ckpt
-
-  #Experiment 16
-  #load: /app/code/pixelsplat_Sim2Real/outputs/2026-01-01/19-41-11/checkpoints/epoch=1260-step=300000.ckpt
-  #load : /app/felix/code/pixelsplat_Sim2Real/outputs/2026-01-01/19-41-11/checkpoints/epoch=168-step=40000.ckpt #for comparison
+  #Experiment 16 seed4d
   #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-13/20-31-33/checkpoints/epoch=1260-step=300000.ckpt
 
-  #Experiment 17 secogan  #continue training this!
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-01-29/18-27-29/checkpoints/epoch=630-step=300000.ckpt
-
-  #Experiment 18 secogan full training
+  #Experiment 18 secogan 
   #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-05/19-12-52/checkpoints/epoch=1260-step=300000.ckpt
 
   #Experiment 19 flux2 dataset 128x128
   #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-12/04-00-51/checkpoints/epoch=1260-step=300000.ckpt
 
-
-  #Model Variants - big training
-
-  #1C
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-12/20-41-03/checkpoints/epoch=105-step=100000.ckpt
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-12/20-41-03/checkpoints/epoch=315-step=300000.ckpt #epoch315
-  #1F
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-12/20-23-11/checkpoints/epoch=105-step=100000.ckpt
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-12/20-23-11/checkpoints/epoch=315-step=300000.ckpt #epoch315
-  #1S - continue here:
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-26/15-16-09/checkpoints/epoch=152-step=145000.ckpt
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-28/23-46-59/checkpoints/epoch=215-step=205000.ckpt
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-28/23-46-59/checkpoints/epoch=226-step=215000.ckpt
-  load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-28/23-46-59/checkpoints/epoch=268-step=255000.ckpt
-  #2C
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-13/20-31-33/checkpoints/epoch=126-step=30000.ckpt
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-13/20-31-33/checkpoints/epoch=1260-step=300000.ckpt #epoch1260
-  #2F
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-13/20-25-47/checkpoints/epoch=126-step=30000.ckpt
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-13/20-25-47/checkpoints/epoch=1260-step=300000.ckpt #epoch1260
-
-
-  #3
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-16/17-21-15/checkpoints/epoch=105-step=50000.ckpt
-
-  #4
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-11/02-01-34/checkpoints/epoch=105-step=100000.ckpt
-
-  #5
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-11/02-08-39/checkpoints/epoch=105-step=100000.ckpt
-  
-  #6
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-09/20-23-30/checkpoints/epoch=105-step=100000.ckpt
-  
-  #7
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-09/20-34-27/checkpoints/epoch=105-step=100000.ckpt
-
-  #9
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-09/20-51-54/checkpoints/epoch=105-step=100000.ckpt
-
-  #Generate Gif: Nuscenes - seed4d checkpoint 1C
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-12/20-41-03/checkpoints/epoch=420-step=400000.ckpt
+  #Experiment 1C SEED4D 192x192
   #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-12/20-41-03/checkpoints/epoch=630-step=600000.ckpt
 
-  #Generate Gif: Nuscenes - seed4d checkpoint 1F
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-12/20-23-11/checkpoints/epoch=368-step=350000.ckpt
+  #Experiment 1F FLUX2_9B 192x192
   #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-12/20-23-11/checkpoints/epoch=630-step=600000.ckpt
 
-  #Generate Gif: Nuscenes - seed4d checkpoint 2C
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-13/20-31-33/checkpoints/epoch=1260-step=300000.ckpt
+  #Experiment 1S SecoGAN 192x192 
+  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-28/23-46-59/checkpoints/epoch=268-step=255000.ckpt
   
-  #Genrate Gif: Nuscenes - seed4d checkpoint 2F
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-13/20-25-47/checkpoints/epoch=1260-step=300000.ckpt
-
-  #restart training 
-  #flux2
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-19/18-28-16/checkpoints/epoch=882-step=210000.ckpt
-
-  #seed4d
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-19/18-00-51/checkpoints/epoch=924-step=220000.ckpt
-
-
-  #BEV
-
-  #seed4d
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-22/22-54-26/checkpoints/epoch=1260-step=300000.ckpt
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-19/18-00-51/checkpoints/epoch=336-step=80000.ckpt #80k
-  
-  #flux2
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-22/22-45-57/checkpoints/epoch=1260-step=300000.ckpt
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-19/18-28-16/checkpoints/epoch=336-step=80000.ckpt #80k
-  
-  #secogan
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-19/18-49-37/checkpoints/epoch=1260-step=300000.ckpt
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-19/18-49-37/checkpoints/epoch=336-step=80000.ckpt #80k
-
-
-  #Experiment 26
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-24/20-40-10/checkpoints/epoch=1239-step=295000.ckpt
-
-  #Experiment 27
-  #load: /app/felix/code/pixelsplat_Sim2Real/outputs/2026-02-24/20-46-14/checkpoints/epoch=1239-step=295000.ckpt
   
 
-  every_n_train_steps: 5000 #was before: 20000
+  every_n_train_steps: 20000 
   save_top_k: -1
 
 train:
@@ -242,90 +84,9 @@ train:
   extended_visualization: false
 
 test:
-  #output_path: /app/outputs/temporal_diff_td4_rend4
-  #output_path: /app/outputs/ego_ego_carla_on_nuscene_finetune
-  #output_path: /app/outputs/ego-ego_seed4d_finetune_mixed_98cams #ego_exo_sensitivity_analysis/data_7cams_nuscene_adjusted
-  #output_path: /app/outputs/ego-ego_nuscene_finetune_mixed_98cams_td1_1
-  ##output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscene_mod
-
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-eval_ego-exo_SEED4D_new #1
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_SEED4D_new #2
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_SEED4D_new #3
-
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-eval_ego-exo_Nuscene_new #1
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_Nuscene_new_test_loader #2
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_2percent_Nus_seedloader_delete #3
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-eval_ego-exo_Nuscene_new_check_setup_delete
-
-  #output_path: /app/outputs/carla_nuscence_on_nuscene_0shot_td1_rend1_2
-  #output_path: /app/outputs/ego_exo_mixed_domain_testrun 
-  #output_path: /app/outputs/nuscene_on_nuscene_ckpt_0shot_ego_exo #_td1_rend1_test
-  #output_path: /app/outputs/ego_exo_nuscene_on_carla_ckpt_original_extrinsics_from_nuscene #nuscene_ego_exo
-
-
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment6 #6
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment10_setup_test #7
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_SEED4D_experiment8 #8  #broken
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment9 #9  #broken
   
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscene_experiment10 #10
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_SEED4D_experiment11_test #11
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment12 #_ckpt_180k #12
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment13_ckpt_180k #13
-
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment14_correct_rel_loss_metric #14
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment15 #15
-  #output_path: /app/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-ego_Nuscenes_experiment16_depth_giant_large #16
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_experiment17 #17
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_experiment18 #18
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_experiment19 #19
-
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_Nuscenes_experiment26 #26
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-Domain-eval_ego-exo_SEED4D_experiment27 #27
-
-
-
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_SEED4D_modelvar_1C_epoch630 #1C
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-exo_SEED4D_modelvar_1F_epoch630 #1F
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_1S_epoch215 #1S
-  output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_1S_epoch268 #1S
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_2C_epoch1260 #2C
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_2F_epoch1260 #2F
-
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_3 #3
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_4 #4
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_5 #5
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_6 #6
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_7 #7
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_8 #8
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_Diverse_Ego-Exo-Mixed-eval_ego-ego_Nuscenes_modelvar_9 #9
-
-  #BEV
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_BEV_SEED4D-eval_ego-exo_Nuscenes_80k
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/BEV_SEED4D_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_BEV_flux2-eval_ego-exo_Nuscenes_80k
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/BEV_flux2_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training_BEV_secogan-eval_ego-exo_Nuscenes_80k
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/BEV_secogan_Nuscenes
-
-  #Generate Gif: 
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_16_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_18_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/Experiment_19_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_12_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_0_Nuscenes_new
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_III_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_initial_eyvaz_Nuscenes
-
-  #Big input 192x192
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_16_192x192_Nuscenes
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_18_192x192_Nuscenes_epoch268
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_19_192x192_Nuscenes
-
-  #rerun to get proper DRMSE values
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training-eval_ego-exo_SEED4D_experiment0_base #0
-  #output_path: /app/felix/data/pixelsplat_Sim2Real/outputs/pixelsplat_new_training-eval_ego-ego_SEED4D_experimentIII_new #II
-
+  output_path: /app/outputs/pixelsplat 
+ 
   compute_scores: false
   save_image: true
   save_video: true

@@ -38,7 +38,7 @@ from .encoder import Encoder
 from .encoder.visualization.encoder_visualizer import EncoderVisualizer
 import numpy as np
 import json
-import os 
+import os
 import time
 import matplotlib.pyplot as plt
 
@@ -112,22 +112,21 @@ class ModelWrapper(LightningModule):
         self.data_shim = get_data_shim(self.encoder)
         self.losses = nn.ModuleList(losses)
 
-        # This is used for testing.
         self.benchmarker = Benchmarker()
-        
+
+        # Per-step metric accumulators; only allocated when scoring is enabled.
         if self.test_cfg.compute_scores:
             self.test_step_outputs = {}
             self.time_skip_steps_dict = {"encoder": 0, "decoder": 0}
 
     def apply_inferno_colormap(self, depth_tensor):
         """Apply inferno colormap to depth tensor using matplotlib."""
-        # Convert tensor to numpy
         if isinstance(depth_tensor, torch.Tensor):
             depth_np = depth_tensor.detach().cpu().numpy()
         else:
             depth_np = depth_tensor
         
-        # Normalize depth values to [0, 1] for colormap
+        # Normalize depth values to [0, 1] for colormap application.
         depth_min = depth_np.min()
         depth_max = depth_np.max()
         if depth_max > depth_min:
@@ -135,99 +134,11 @@ class ModelWrapper(LightningModule):
         else:
             depth_normalized = np.zeros_like(depth_np)
         
-        # Apply inferno colormap
         cmap = plt.cm.inferno
         colored_depth = cmap(depth_normalized)[:, :, :3]  # Remove alpha channel
-        
-        # Convert back to tensor format
         colored_depth_tensor = torch.from_numpy(colored_depth).permute(2, 0, 1).float()
         
         return colored_depth_tensor
-
-    # =========================================================================
-    # RAIN-GS covariance modifications (arxiv 2403.09413)
-    #
-    # Two independent techniques, each toggled by one uncommented line in
-    # training_step.  They can be used separately or together.
-    #
-    # ── (A) Progressive Low-Pass Filter ──────────────────────────────────────
-    # Multiplies all covariances by λ² early in training so the rasterizer
-    # only sees blurry, low-frequency content.  λ decays to 1.0 over time.
-    # Covariance Σ = R S Sᵀ Rᵀ; scaling S by λ  →  Σ_new = λ² · Σ.
-    #
-    LPF_LAMBDA_INIT: float = 4.0    # starting multiplier; try 2–8
-    LPF_END_STEP:    int   = 30000  # step at which λ reaches 1.0 (no-op after)
-    #
-    # ── (B) Progressive eps2d diagonal regulariser ───────────────────────────
-    # Adds s·I to every projected 2-D covariance so no Gaussian collapses
-    # below one pixel (eq. 5 in the paper).  Standard fixed value is s=0.3.
-    # Here we start with a large s_init (acts like an additional LPF) and
-    # decay it to s_min=0.3 in staircase steps of ratio r every decay_every
-    # steps:  s(t) = max(s_min, s_init · r^(t // decay_every))
-    #
-    # The addition is done in 3-D covariance space as s·I₃ so it is
-    # rasterizer-agnostic (no changes needed in the decoder/rasterizer).
-    # When the rasterizer projects Σ₃ → Σ₂ and adds the pixel-coverage term
-    # internally, set s_init=0.3, decay_ratio=1.0 to use the standard fix only.
-    #
-    EPS2D_S_INIT:     float = 1.0   # large → strong early regularisation
-    EPS2D_S_MIN:      float = 0.3    # final value (paper default)
-    EPS2D_DECAY_RATIO: float = 1/3   # multiply s by this every decay_every steps
-    EPS2D_DECAY_EVERY: int  = 5000 # staircase period in steps
-    # =========================================================================
-
-    # ── helpers ──────────────────────────────────────────────────────────────
-
-    def _apply_lpf_to_gaussians(self, gaussians, step: int):
-        """(A) Multiply covariances by λ²; λ decays exponentially to 1."""
-        lambda_val = max(
-            1.0,
-            self.LPF_LAMBDA_INIT
-            * (1.0 / self.LPF_LAMBDA_INIT) ** (step / max(self.LPF_END_STEP, 1)),
-        )
-        if lambda_val <= 1.0 + 1e-6:
-            return gaussians  # fully decayed → no-op
-
-        self.log("train/lpf_lambda", lambda_val)
-        return type(gaussians)(
-            means=gaussians.means,
-            covariances=gaussians.covariances * (lambda_val ** 2),
-            harmonics=gaussians.harmonics,
-            opacities=gaussians.opacities,
-        )
-
-    def _get_eps2d(
-        self,
-        step: int,
-        s_init: float  = None,
-        s_min: float   = None,
-        decay_ratio: float = None,
-        decay_every: int   = None,
-    ) -> float:
-        """Return the current eps2d value on the staircase decay schedule."""
-        s_init      = s_init      if s_init      is not None else self.EPS2D_S_INIT
-        s_min       = s_min       if s_min       is not None else self.EPS2D_S_MIN
-        decay_ratio = decay_ratio if decay_ratio is not None else self.EPS2D_DECAY_RATIO
-        decay_every = decay_every if decay_every is not None else self.EPS2D_DECAY_EVERY
-
-        n_steps = step // max(decay_every, 1)
-        s = s_init * (decay_ratio ** n_steps)
-        return max(s_min, s)
-
-    def _apply_eps2d_to_gaussians(self, gaussians, step: int):
-        """(B) Add s·I₃ to every 3-D covariance matrix."""
-        s = self._get_eps2d(step)
-        self.log("train/eps2d_s", s)
-
-        eye3 = torch.eye(3, dtype=gaussians.covariances.dtype,
-                         device=gaussians.covariances.device)
-        # covariances shape: (b, n, 3, 3)
-        return type(gaussians)(
-            means=gaussians.means,
-            covariances=gaussians.covariances + s * eye3,
-            harmonics=gaussians.harmonics,
-            opacities=gaussians.opacities,
-        )
 
     def training_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)
@@ -235,10 +146,6 @@ class ModelWrapper(LightningModule):
         
         # Run the model.
         gaussians = self.encoder(batch["context"], self.global_step, False)
-        # [LPF]   Uncomment to enable progressive low-pass filter (RAIN-GS §5.2):
-        #gaussians = self._apply_lpf_to_gaussians(gaussians, self.global_step)
-        # [EPS2D] Uncomment to enable progressive diagonal regulariser (eq. 5):
-        #gaussians = self._apply_eps2d_to_gaussians(gaussians, self.global_step)
         output = self.decoder.forward(
             gaussians,
             batch["target"]["extrinsics"],
@@ -273,7 +180,7 @@ class ModelWrapper(LightningModule):
                 f"loss = {total_loss:.6f}"
             )
 
-        # Tell the data loader processes about the current step.
+        # Notify the data loader workers of the current training step (used for curriculum sampling).
         if self.step_tracker is not None:
             self.step_tracker.set_step(self.global_step)
 
@@ -282,186 +189,127 @@ class ModelWrapper(LightningModule):
     def create_concatenated_image(self, scene_path, reference_images, color_images, target_images, depth_images, target_depth_images):
         """Create a concatenated image with five horizontal rows stacked vertically."""
         try:
-            # Convert tensors to numpy arrays and ensure they're in the right format
+            # Convert a list of tensors to HWC float32 numpy arrays in [0, 1].
             def tensor_to_image_array(tensor_list):
                 images = []
-                for i, tensor in enumerate(tensor_list):
+                for tensor in tensor_list:
                     if isinstance(tensor, torch.Tensor):
-                        # Convert to numpy and ensure proper format
                         img = tensor.detach().cpu().numpy()
                         
-                        # Handle different tensor shapes
                         if len(img.shape) == 3:
                             if img.shape[0] in [1, 3, 4]:  # Channel first (C, H, W)
                                 img = np.transpose(img, (1, 2, 0))
-                            # If already (H, W, C), keep as is
                         elif len(img.shape) == 2:  # Grayscale (H, W)
-                            img = np.stack([img] * 3, axis=2)  # Convert to RGB
+                            img = np.stack([img] * 3, axis=2)
                         
-                        # Debug: Check for problematic values
-                        if img.max() > 1.1 or img.min() < -0.1:
-                            print(f"Debug - WARNING: Image {i} has unusual range [{img.min():.3f}, {img.max():.3f}]")
-                        
-                        # Ensure range [0, 1] - be more robust about range detection
                         if img.dtype == np.uint8:
                             img = img.astype(np.float32) / 255.0
                         elif img.max() > 1.0:
-                            # Normalize values > 1.0 back to [0,1] range
                             img = np.clip(img, 0.0, 1.0)
-                            print(f"Debug - Clipped image {i} to [0,1] range")
                         
-                        # Ensure 3 channels for RGB
                         if len(img.shape) == 3 and img.shape[2] == 1:
                             img = np.repeat(img, 3, axis=2)
                         elif len(img.shape) == 3 and img.shape[2] == 4:
-                            img = img[:, :, :3]  # Remove alpha channel if present
+                            img = img[:, :, :3]  # Remove alpha channel
                         
-                        # Final safety clip
                         img = np.clip(img, 0.0, 1.0)
-                        
                         images.append(img)
-                    else:
-                        print(f"Warning: Non-tensor item in image list: {type(tensor)}")
                 return images
             
-            # Helper function to create a black image with white text
+            # Create a black placeholder image with a text label (used when an image list is empty).
             def create_empty_image(target_h, target_w, text):
                 img = np.zeros((target_h, target_w, 3), dtype=np.float32)
                 try:
                     import cv2
                     font = cv2.FONT_HERSHEY_SIMPLEX
                     font_scale = min(target_h, target_w) / 400.0
-                    color = (1.0, 1.0, 1.0)  # White color
+                    color = (1.0, 1.0, 1.0)
                     thickness = max(1, int(font_scale * 2))
-                    
                     text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
                     text_x = (target_w - text_size[0]) // 2
                     text_y = (target_h + text_size[1]) // 2
-                    
                     cv2.putText(img, text, (text_x, text_y), font, font_scale, color, thickness)
                 except ImportError:
                     pass
                 return img
             
-            # Fixed padding function
+            # Pad or truncate an image list to exactly target_count entries so all rows have equal width.
             def pad_image_list(img_list, target_count, target_h, target_w, list_name):
-                original_count = len(img_list)
-                print(f"Debug - {list_name}: original={original_count}, target={target_count}")
-                
                 if len(img_list) == 0:
-                    # Create empty images with text
                     empty_img = create_empty_image(target_h, target_w, f"{list_name} empty")
-                    result = [empty_img.copy() for _ in range(target_count)]
-                    print(f"Debug - Created {len(result)} empty images for {list_name}")
-                    return result
+                    return [empty_img.copy() for _ in range(target_count)]
                 elif len(img_list) < target_count:
-                    # Repeat the last image to fill the gap
-                    last_img = img_list[-1].copy()
                     padding_needed = target_count - len(img_list)
-                    padded_images = [last_img.copy() for _ in range(padding_needed)]
-                    img_list.extend(padded_images)
-                    print(f"Debug - Padded {list_name} from {original_count} to {len(img_list)} (added {padding_needed} copies)")
+                    img_list.extend([img_list[-1].copy() for _ in range(padding_needed)])
                     return img_list
                 elif len(img_list) > target_count:
-                    # Truncate to target count
-                    img_list = img_list[:target_count]
-                    print(f"Debug - Truncated {list_name} from {original_count} to {len(img_list)}")
-                    return img_list
+                    return img_list[:target_count]
                 else:
-                    print(f"Debug - {list_name} already correct size: {len(img_list)}")
                     return img_list
             
-            # Debug: Print tensor info before conversion
-            print(f"Debug - Reference images: {len(reference_images)}")
-            print(f"Debug - Color images: {len(color_images)}")
-            print(f"Debug - Target images: {len(target_images)}")
-            print(f"Debug - Depth images: {len(depth_images)}")
-            print(f"Debug - Target depth images: {len(target_depth_images)}")
-            
-            if color_images:
-                sample_color = color_images[0]
-                if isinstance(sample_color, torch.Tensor):
-                    print(f"Debug - Color tensor shape: {sample_color.shape}, dtype: {sample_color.dtype}, range: [{sample_color.min():.3f}, {sample_color.max():.3f}]")
-            
-            # Convert all image sets to numpy arrays
+            # Convert all image sets from tensors to numpy arrays.
             ref_arrays = tensor_to_image_array(reference_images)
             color_arrays = tensor_to_image_array(color_images)
             target_arrays = tensor_to_image_array(target_images)
             depth_arrays = tensor_to_image_array(depth_images)
             target_depth_arrays = tensor_to_image_array(target_depth_images)
             
-            print(f"Debug - After conversion - ref: {len(ref_arrays)}, color: {len(color_arrays)}, target: {len(target_arrays)}, depth: {len(depth_arrays)}, target_depth: {len(target_depth_arrays)}")
-            
-            # Check if any arrays are empty
             if not (ref_arrays or color_arrays or target_arrays or depth_arrays or target_depth_arrays):
                 print(f"Warning: All image arrays are empty for scene {scene_path}")
                 return
             
-            # Find the maximum number of images across all types
             max_images = max(
-                len(ref_arrays) if ref_arrays else 0,
-                len(color_arrays) if color_arrays else 0,
-                len(target_arrays) if target_arrays else 0,
-                len(depth_arrays) if depth_arrays else 0,
-                len(target_depth_arrays) if target_depth_arrays else 0
+                len(ref_arrays), len(color_arrays), len(target_arrays),
+                len(depth_arrays), len(target_depth_arrays)
             )
             
-            print(f"Debug - Max images: {max_images}")
-            
-            # Get dimensions - use the first available image from any array
-            sample_img = None
-            for img_list, name in [(ref_arrays, "ref"), (color_arrays, "color"), (target_arrays, "target"), (depth_arrays, "depth"), (target_depth_arrays, "target_depth")]:
-                if img_list:
-                    sample_img = img_list[0]
-                    print(f"Debug - Using {name} for dimensions: {sample_img.shape}")
-                    break
-            
+            sample_img = next(
+                (img_list[0] for img_list in [ref_arrays, color_arrays, target_arrays, depth_arrays, target_depth_arrays] if img_list),
+                None
+            )
             if sample_img is None:
                 print(f"Warning: No valid images found for scene {scene_path}")
                 return
                 
             target_h, target_w = sample_img.shape[:2]
             
-            # Resize all images to match target dimensions
-            def resize_images(img_list, target_h, target_w, list_name):
+            # Resize all images in a list to a common spatial resolution before concatenation.
+            def resize_images(img_list, target_h, target_w):
                 resized = []
-                for i, img in enumerate(img_list):
+                for img in img_list:
                     if img.shape[:2] != (target_h, target_w):
                         try:
                             import cv2
                             img = cv2.resize(img, (target_w, target_h))
-                            print(f"Debug - Resized {list_name}[{i}] to ({target_h}, {target_w})")
                         except ImportError:
                             try:
                                 from scipy.ndimage import zoom
                                 zoom_factors = (target_h / img.shape[0], target_w / img.shape[1], 1)
                                 img = zoom(img, zoom_factors, order=1)
-                                print(f"Debug - Zoom resized {list_name}[{i}] to ({target_h}, {target_w})")
                             except ImportError:
-                                print(f"Warning: Cannot resize {list_name}[{i}] - no cv2 or scipy available")
+                                print(f"Warning: Cannot resize image - no cv2 or scipy available")
                     resized.append(img)
                 return resized
             
-            # Resize all images first
+            # Resize all image lists to the same spatial resolution as the first available image.
             if ref_arrays:
-                ref_arrays = resize_images(ref_arrays, target_h, target_w, "reference")
+                ref_arrays = resize_images(ref_arrays, target_h, target_w)
             if color_arrays:
-                color_arrays = resize_images(color_arrays, target_h, target_w, "color")
+                color_arrays = resize_images(color_arrays, target_h, target_w)
             if target_arrays:
-                target_arrays = resize_images(target_arrays, target_h, target_w, "target")
+                target_arrays = resize_images(target_arrays, target_h, target_w)
             if depth_arrays:
-                depth_arrays = resize_images(depth_arrays, target_h, target_w, "depth")
+                depth_arrays = resize_images(depth_arrays, target_h, target_w)
             if target_depth_arrays:
-                target_depth_arrays = resize_images(target_depth_arrays, target_h, target_w, "target_depth")
+                target_depth_arrays = resize_images(target_depth_arrays, target_h, target_w)
             
-            # Ensure all arrays have the same number of images using FIXED padding
+            # Pad or truncate each list so all rows span the same number of columns.
             ref_arrays = pad_image_list(ref_arrays, max_images, target_h, target_w, "reference")
             color_arrays = pad_image_list(color_arrays, max_images, target_h, target_w, "color")
             target_arrays = pad_image_list(target_arrays, max_images, target_h, target_w, "target")
             depth_arrays = pad_image_list(depth_arrays, max_images, target_h, target_w, "depth")
             target_depth_arrays = pad_image_list(target_depth_arrays, max_images, target_h, target_w, "target_depth")
             
-            # Create horizontal concatenations
             try:
                 ref_row = np.concatenate(ref_arrays, axis=1) if ref_arrays else np.zeros((target_h, target_w, 3))
                 color_row = np.concatenate(color_arrays, axis=1) if color_arrays else np.zeros((target_h, target_w, 3))
@@ -469,17 +317,10 @@ class ModelWrapper(LightningModule):
                 depth_row = np.concatenate(depth_arrays, axis=1) if depth_arrays else np.zeros((target_h, target_w, 3))
                 target_depth_row = np.concatenate(target_depth_arrays, axis=1) if target_depth_arrays else np.zeros((target_h, target_w, 3))
                 
-                print(f"Debug - Row shapes: ref{ref_row.shape}, color{color_row.shape}, target{target_row.shape}, depth{depth_row.shape}, target_depth{target_depth_row.shape}")
-                
                 # Stack vertically: reference, color, target, depth (predicted), target_depth (ground truth)
                 final_image = np.concatenate([ref_row, color_row, target_row, depth_row, target_depth_row], axis=0)
-                
-                print(f"Debug - Final image shape: {final_image.shape}, range: [{final_image.min():.3f}, {final_image.max():.3f}]")
-                
-                # Convert back to tensor and save
                 final_tensor = torch.from_numpy(final_image).permute(2, 0, 1).float()
                 
-                # Save the concatenated image
                 concat_path = scene_path / "concatenated_view.png"
                 save_image(final_tensor, concat_path)
                 print(f"Saved concatenated image to {concat_path}")
@@ -499,12 +340,12 @@ class ModelWrapper(LightningModule):
         b, v, _, h, w = batch["target"]["image"].shape
         assert b == 1
         start_time = time.time()
-        # Render Gaussians.
+
         with self.benchmarker.time("encoder"):
             gaussians = self.encoder(
                 batch["context"],
                 self.global_step,
-                deterministic=False,  #RESTORED: Use deterministic=True for consistent test results - EDIT: # DEBUG: changed to False for testing
+                deterministic=False,
             )
         with self.benchmarker.time("decoder", num_calls=v):
             output = self.decoder.forward(
@@ -516,73 +357,60 @@ class ModelWrapper(LightningModule):
                 (h, w),
                 depth_mode="depth",
             )
-        compute_time = time.time()-start_time
+        compute_time = time.time() - start_time
         (scene,) = (batch["scene"][0] + "_" + str(batch_idx),)
         name = get_cfg()["wandb"]["name"]
         path = self.test_cfg.output_path / name
+
+        # Unpack model outputs and ground-truth targets.
         images_prob = output.color[0]
         depth_prop = output.depth[0].unsqueeze(1)
         rgb_gt = batch["target"]["image"][0]
         depth_gt = batch["target"]["depth"][0]
         
-        # ============ MODIFIED: Get the ACTUAL context images used (not just indices) ============
         # The batch["context"]["image"] already contains the correctly selected context images
         # because the view sampler has already filtered them via index_context
         reference_images = batch["context"]["image"][0]
-        # ==========================================================================================
 
-        # Lists to store images for concatenation
         saved_reference_images = []
         saved_color_images = []
         saved_target_images = []
         saved_depth_images = []
         saved_target_depth_images = []
 
-        # Save images.
         if self.test_cfg.save_image:
-            # Save rendered color images
             for index, color in zip(batch["target"]["index"][0], images_prob):
                 save_image(color, path / scene / f"color/{index:0>6}.png")
                 saved_color_images.append(color)
             
-            # Save rendered depth images with inferno colormap
             for index, depth_map in zip(batch["target"]["index"][0], depth_prop):
-                # Apply inferno colormap to depth
-                depth_inferno = self.apply_inferno_colormap(depth_map.squeeze(0)/60)
+                depth_inferno = self.apply_inferno_colormap(depth_map.squeeze(0) / 60)
                 save_image(depth_inferno, path / scene / f"depth/{index:0>6}.png")
                 saved_depth_images.append(depth_inferno)
             
-            # Save ground truth depth images with inferno colormap
             for index, gt_depth_map in zip(batch["target"]["index"][0], depth_gt):
-                # Apply inferno colormap to ground truth depth
-                gt_depth_inferno = self.apply_inferno_colormap(gt_depth_map.squeeze(0)/60)
+                gt_depth_inferno = self.apply_inferno_colormap(gt_depth_map.squeeze(0) / 60)
                 save_image(gt_depth_inferno, path / scene / f"target_depth/{index:0>6}.png")
                 saved_target_depth_images.append(gt_depth_inferno)
             
-            # ============ MODIFIED: Save reference images with correct indexing ============
-            # Save ALL reference images that were actually used (already filtered by view sampler)
+            # Save all reference images that were actually used (already filtered by view sampler)
             for ref_idx, reference_img in enumerate(reference_images):
                 save_image(reference_img, path / scene / f"reference/{ref_idx:0>6}.png")
                 saved_reference_images.append(reference_img)
-            # ================================================================================
             
-            # Save target (ground truth) images
             for index, target_img in zip(batch["target"]["index"][0], rgb_gt):
                 save_image(target_img, path / scene / f"target/{index:0>6}.png")
                 saved_target_images.append(target_img)
             
-            # Create concatenated image
-            scene_path = path / scene
             self.create_concatenated_image(
-                scene_path,
+                path / scene,
                 saved_reference_images,
-                saved_color_images, 
+                saved_color_images,
                 saved_target_images,
                 saved_depth_images,
                 saved_target_depth_images
             )
         
-        # save video
         if self.test_cfg.save_video:
             frame_str = "_".join([str(x.item()) for x in batch["context"]["index"][0]])
             save_video(
@@ -590,13 +418,13 @@ class ModelWrapper(LightningModule):
                 path / "video" / f"{scene}_frame_{frame_str}.mp4",
             )
 
-        # compute scores
         if self.test_cfg.compute_scores:
             if batch_idx < self.test_cfg.eval_time_skip_steps:
                 self.time_skip_steps_dict["encoder"] += 1
                 self.time_skip_steps_dict["decoder"] += v
             rgb = images_prob
 
+            # Initialise metric accumulators on first call (defaultdict would also work here).
             if f"psnr" not in self.test_step_outputs:
                 self.test_step_outputs[f"psnr"] = []
             if f"ssim" not in self.test_step_outputs:
@@ -608,20 +436,17 @@ class ModelWrapper(LightningModule):
             if f"compute_time" not in self.test_step_outputs:
                 self.test_step_outputs[f"compute_time"] = []
 
-            self.test_step_outputs[f"psnr"].append(
-                compute_psnr(rgb_gt, rgb).mean().item()
-            )
-            self.test_step_outputs[f"ssim"].append(
-                compute_ssim(rgb_gt, rgb).mean().item()
-            )
-            self.test_step_outputs[f"lpips"].append(
-                compute_lpips(rgb_gt, rgb).mean().item()
-            )
+            self.test_step_outputs[f"psnr"].append(compute_psnr(rgb_gt, rgb).mean().item())
+            self.test_step_outputs[f"ssim"].append(compute_ssim(rgb_gt, rgb).mean().item())
+            self.test_step_outputs[f"lpips"].append(compute_lpips(rgb_gt, rgb).mean().item())
             self.test_step_outputs[f"compute_time"].append(compute_time)
             self.test_step_outputs[f"drmse"].append(
-                torch.sqrt(compute_depth_mse(depth_gt.clamp(min=0.0, max=60.0),
-                                            depth_prop.clamp(min=0.0, max=60.0), 
-                                            output_color=rgb.clamp(min=0.0, max=1.0))).item())
+                torch.sqrt(compute_depth_mse(
+                    depth_gt.clamp(min=0.0, max=60.0),
+                    depth_prop.clamp(min=0.0, max=60.0),
+                    output_color=rgb.clamp(min=0.0, max=1.0)
+                )).item()
+            )
 
     def on_test_end(self) -> None:
         name = get_cfg()["wandb"]["name"]
@@ -631,6 +456,7 @@ class ModelWrapper(LightningModule):
             self.benchmarker.dump_memory(out_dir / "peak_memory.json")
             self.benchmarker.dump(out_dir / "benchmark.json")
 
+            # Write per-step scores to disk and compute averages.
             for metric_name, metric_scores in self.test_step_outputs.items():
                 avg_scores = sum(metric_scores) / len(metric_scores)
                 saved_scores[metric_name] = avg_scores
@@ -639,23 +465,18 @@ class ModelWrapper(LightningModule):
                     json.dump(metric_scores, f)
                 metric_scores.clear()
 
+            # Exclude warm-up steps from timing statistics, then reset counters.
             for tag, times in self.benchmarker.execution_times.items():
-                times = times[int(self.time_skip_steps_dict[tag]) :]
+                times = times[int(self.time_skip_steps_dict[tag]):]
                 saved_scores[tag] = [len(times), np.mean(times)]
-                print(
-                    f"{tag}: {len(times)} calls, avg. {np.mean(times)} seconds per call"
-                )
+                print(f"{tag}: {len(times)} calls, avg. {np.mean(times)} seconds per call")
                 self.time_skip_steps_dict[tag] = 0
 
             with (out_dir / f"scores_all_avg.json").open("w") as f:
                 json.dump(saved_scores, f)
-            # Note: benchmarker.clear_history() method may not be implemented
-            # self.benchmarker.clear_history()
         else:
             self.benchmarker.dump(self.test_cfg.output_path / name / "benchmark.json")
-            self.benchmarker.dump_memory(
-                self.test_cfg.output_path / name / "peak_memory.json"
-            )
+            self.benchmarker.dump_memory(self.test_cfg.output_path / name / "peak_memory.json")
             self.benchmarker.summarize()
 
     @rank_zero_only
@@ -669,150 +490,80 @@ class ModelWrapper(LightningModule):
                 f"context = {batch['context']['index'].tolist()}"
             )
 
-        # ============ ADDED: Log loaded images ============
-        # Log context images
-        print(f"Context images shape: {batch['context']['image'].shape}")
-        print(f"Context indices: {batch['context']['index'].tolist()}")
-        
-        # Log target images
-        print(f"Target images shape: {batch['target']['image'].shape}")
-        print(f"Target indices: {batch['target']['index'].tolist()}")
-        
-        # Optional: Save a visualization of loaded images
+        # ~~~ log loaded images ~~~
         context_imgs = batch['context']['image'][0]
         target_imgs = batch['target']['image'][0]
         
-        # Create visualization of loaded images
         loaded_imgs_viz = hcat(
             add_label(vcat(*context_imgs), "Loaded Context Images"),
             add_label(vcat(*target_imgs), "Loaded Target Images"),
         )
-        
         self.logger.log_image(
             "loaded_images",
             [prep_image(add_border(loaded_imgs_viz))],
             step=self.global_step,
-            caption=[batch['scene'][0]]  # FIX: Use list with single element, and index [0]
+            caption=[batch['scene'][0]]
         )
-        # ==================================================
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        # Render Gaussians with both probabilistic and deterministic modes for comparison.
+        b, _, _, h, w = batch["target"]["image"].shape
+        assert b == 1
+        gaussians_probabilistic = self.encoder(
+            batch["context"],
+            self.global_step,
+            deterministic=False,
+        )
+        output_probabilistic = self.decoder.forward(
+            gaussians_probabilistic,
+            batch["target"]["extrinsics"],
+            batch["target"]["intrinsics"],
+            batch["target"]["near"],
+            batch["target"]["far"],
+            (h, w),
+        )
+        rgb_probabilistic = output_probabilistic.color[0]
+        gaussians_deterministic = self.encoder(
+            batch["context"],
+            self.global_step,
+            deterministic=True,
+        )
+        output_deterministic = self.decoder.forward(
+            gaussians_deterministic,
+            batch["target"]["extrinsics"],
+            batch["target"]["intrinsics"],
+            batch["target"]["near"],
+            batch["target"]["far"],
+            (h, w),
+        )
+        rgb_deterministic = output_deterministic.color[0]
+
+        # Compute validation metrics.
+        rgb_gt = batch["target"]["image"][0]
+        for tag, rgb in zip(
+            ("deterministic", "probabilistic"), (rgb_deterministic, rgb_probabilistic)
+        ):
+            psnr = compute_psnr(rgb_gt, rgb).mean()
+            self.log(f"val/psnr_{tag}", psnr)
+            lpips = compute_lpips(rgb_gt, rgb).mean()
+            self.log(f"val/lpips_{tag}", lpips)
+            ssim = compute_ssim(rgb_gt, rgb).mean()
+            self.log(f"val/ssim_{tag}", ssim)
+
+        # Construct comparison image.
+        comparison = hcat(
+            add_label(vcat(*batch["context"]["image"][0]), "Context"),
+            add_label(vcat(*rgb_gt), "Target (Ground Truth)"),
+            add_label(vcat(*rgb_probabilistic), "Target (Probabilistic)"),
+            add_label(vcat(*rgb_deterministic), "Target (Deterministic)"),
+        )
+        self.logger.log_image(
+            "comparison",
+            [prep_image(add_border(comparison))],
+            step=self.global_step,
+            caption=[batch["scene"][0]],
+        )
         
-        # Render Gaussians.
-        b, _, _, h, w = batch["target"]["image"].shape
-        assert b == 1
-        gaussians_probabilistic = self.encoder(
-            batch["context"],
-            self.global_step,
-            deterministic=False, 
-        )
-        output_probabilistic = self.decoder.forward(
-            gaussians_probabilistic,
-            batch["target"]["extrinsics"],
-            batch["target"]["intrinsics"],
-            batch["target"]["near"],
-            batch["target"]["far"],
-            (h, w),
-        )
-        rgb_probabilistic = output_probabilistic.color[0]
-        gaussians_deterministic = self.encoder(
-            batch["context"],
-            self.global_step,
-            deterministic=True,
-        )
-        output_deterministic = self.decoder.forward(
-            gaussians_deterministic,
-            batch["target"]["extrinsics"],
-            batch["target"]["intrinsics"],
-            batch["target"]["near"],
-            batch["target"]["far"],
-            (h, w),
-        )
-        rgb_deterministic = output_deterministic.color[0]
-
-        # Compute validation metrics.
-        rgb_gt = batch["target"]["image"][0]
-        for tag, rgb in zip(
-            ("deterministic", "probabilistic"), (rgb_deterministic, rgb_probabilistic)
-        ):
-            psnr = compute_psnr(rgb_gt, rgb).mean()
-            self.log(f"val/psnr_{tag}", psnr)
-            lpips = compute_lpips(rgb_gt, rgb).mean()
-            self.log(f"val/lpips_{tag}", lpips)
-            ssim = compute_ssim(rgb_gt, rgb).mean()
-            self.log(f"val/ssim_{tag}", ssim)
-
-        # Construct comparison image.
-        comparison = hcat(
-            add_label(vcat(*batch["context"]["image"][0]), "Context"),
-            add_label(vcat(*rgb_gt), "Target (Ground Truth)"),
-            add_label(vcat(*rgb_probabilistic), "Target (Probabilistic)"),
-            add_label(vcat(*rgb_deterministic), "Target (Deterministic)"),
-        )
-        self.logger.log_image(
-            "comparison",
-            [prep_image(add_border(comparison))],
-            step=self.global_step,
-            caption=[batch["scene"][0]],  # FIX: Also fix this existing line
-        )
-        # ==================================================
-        '''
-        # Render Gaussians.
-        b, _, _, h, w = batch["target"]["image"].shape
-        assert b == 1
-        gaussians_probabilistic = self.encoder(
-            batch["context"],
-            self.global_step,
-            deterministic=False, 
-        )
-        output_probabilistic = self.decoder.forward(
-            gaussians_probabilistic,
-            batch["target"]["extrinsics"],
-            batch["target"]["intrinsics"],
-            batch["target"]["near"],
-            batch["target"]["far"],
-            (h, w),
-        )
-        rgb_probabilistic = output_probabilistic.color[0]
-        gaussians_deterministic = self.encoder(
-            batch["context"],
-            self.global_step,
-            deterministic=True,
-        )
-        output_deterministic = self.decoder.forward(
-            gaussians_deterministic,
-            batch["target"]["extrinsics"],
-            batch["target"]["intrinsics"],
-            batch["target"]["near"],
-            batch["target"]["far"],
-            (h, w),
-        )
-        rgb_deterministic = output_deterministic.color[0]
-
-        # Compute validation metrics.
-        rgb_gt = batch["target"]["image"][0]
-        for tag, rgb in zip(
-            ("deterministic", "probabilistic"), (rgb_deterministic, rgb_probabilistic)
-        ):
-            psnr = compute_psnr(rgb_gt, rgb).mean()
-            self.log(f"val/psnr_{tag}", psnr)
-            lpips = compute_lpips(rgb_gt, rgb).mean()
-            self.log(f"val/lpips_{tag}", lpips)
-            ssim = compute_ssim(rgb_gt, rgb).mean()
-            self.log(f"val/ssim_{tag}", ssim)
-
-        # Construct comparison image.
-        comparison = hcat(
-            add_label(vcat(*batch["context"]["image"][0]), "Context"),
-            add_label(vcat(*rgb_gt), "Target (Ground Truth)"),
-            add_label(vcat(*rgb_probabilistic), "Target (Probabilistic)"),
-            add_label(vcat(*rgb_deterministic), "Target (Deterministic)"),
-        )
-        self.logger.log_image(
-            "comparison",
-            [prep_image(add_border(comparison))],
-            step=self.global_step,
-            caption=batch["scene"],
-        )
-        '''
         # Render projections and construct projection image.
         # These are disabled for now, since RE10k scenes are effectively unbounded.
         projections = vcat(
@@ -968,14 +719,14 @@ class ModelWrapper(LightningModule):
 
         t = torch.linspace(0, 1, num_frames, dtype=torch.float32, device=self.device)
         if smooth:
+            # Apply cosine easing so the video accelerates and decelerates smoothly.
             t = (torch.cos(torch.pi * (t + 1)) + 1) / 2
 
         extrinsics, intrinsics = trajectory_fn(t)
 
         _, _, _, h, w = batch["context"]["image"].shape
 
-        # COMMENTED OUT: Original depth mapping function using turbo colormap
-        # # Color-map the result.
+        # Original turbo colormap version (kept for reference):
         # def depth_map(result):
         #     near = result[result > 0][:16_000_000].quantile(0.01).log()
         #     far = result.view(-1)[:16_000_000].quantile(0.99).log()
@@ -983,7 +734,6 @@ class ModelWrapper(LightningModule):
         #     result = 1 - (result - near) / (far - near)
         #     return apply_color_map_to_image(result, "turbo")
 
-        # Depth mapping function using inferno colormap
         def depth_map(result):
             near = result[result > 0][:16_000_000].quantile(0.01).log()
             far = result.view(-1)[:16_000_000].quantile(0.99).log()
@@ -1021,12 +771,13 @@ class ModelWrapper(LightningModule):
         video = torch.stack(images)
         video = (video.clip(min=0, max=1) * 255).type(torch.uint8).cpu().numpy()
         if loop_reverse:
+            # Append the video played in reverse to create a seamless ping-pong loop.
             video = pack([video, video[::-1][1:-1]], "* c h w")[0]
         visualizations = {
             f"video/{name}": wandb.Video(video[None], fps=30, format="mp4")
         }
 
-        # Since the PyTorch Lightning doesn't support video logging, log to wandb directly.
+        # Since PyTorch Lightning doesn't support video logging, log to wandb directly.
         try:
             wandb.log(visualizations)
         except Exception:
