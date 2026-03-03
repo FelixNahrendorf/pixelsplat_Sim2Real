@@ -175,7 +175,7 @@ class ViewSamplerIOsplat(ViewSampler[ViewSamplerIOsplatCfg]):
                     index_target = torch.tensor(self.cfg.target_views, dtype=torch.int64, device=device)
                 # If not, then randomly select them
                 else:
-                    #assert self.cfg.num_target_views<=20 
+                    assert self.cfg.num_target_views<=20 
                     #index_target = torch.from_numpy(np.random.choice(np.arange(0, 20), size=self.cfg.num_target_views, 
                     #                                                replace=False)).to(dtype=torch.int64, device=device) 
                     

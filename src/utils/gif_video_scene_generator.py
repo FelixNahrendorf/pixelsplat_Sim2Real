@@ -9,9 +9,15 @@ from collections import defaultdict
 #root = "/app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_18_Nuscenes/seed"
 #root = "/app/felix/data/pixelsplat_Sim2Real/outputs/Experiment_19_Nuscenes/seed"
 #root = "/app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_12_Nuscenes/seed"
-#root = "/app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_16_192x192_Nuscenes/seed"
+root = "/app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_16_192x192_Nuscenes/seed"
 #root = "/app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_19_192x192_Nuscenes/seed"
-root = "/app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_0_Nuscenes/seed"
+#root = "/app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_0_Nuscenes_new/seed"
+#root = "/app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_III_Nuscenes/seed"
+#root = "/app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_initial_eyvaz_Nuscenes/seed"
+#root = "/app/felix/data/pixelsplat_Sim2Real/outputs/BEV_secogan_Nuscenes/seed"
+#root = "/app/felix/data/pixelsplat_Sim2Real/outputs/BEV_flux2_Nuscenes/seed"
+#root = "/app/felix/data/pixelsplat_Sim2Real/outputs/BEV_SEED4D_Nuscenes/seed"
+#root = "/app/felix/data/pixelsplat_Sim2Real/outputs/gif/Experiment_18_192x192_Nuscenes_epoch268/seed"
 
 os.makedirs(root, exist_ok=True)
 
@@ -121,6 +127,8 @@ def build_grid_frame(row1_imgs, row2_imgs):
 
     r2_w = row2_imgs[0].width * 2
     r2_h = row2_imgs[0].height * 2
+    #r2_w = int(row2_imgs[0].width * 0.5) #for BEV
+    #r2_h = int(row2_imgs[0].height * 0.5) #for BEV
     row2_total_w = r2_w * len(row2_imgs)
 
     grid_w = max(row1_total_w, row2_total_w)
