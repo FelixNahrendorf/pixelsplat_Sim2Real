@@ -40,7 +40,7 @@ from pyquaternion.quaternion import Quaternion
 from .nuscene_reader import desired_sensor_names, CameraInfo
 # =======================================
 
-SEED4D_DATASET_ROOT = '/app/felix/data/seed4d/data/data_1600x900_new/static/'#'/app/inputs/seed4d/data/data_diverse_1600x900_2poses/static/' #'/app/inputs/seed4d/data/data_baseline/static/' #'/app/inputs/seed4d/data/data_diverse/static/'  # #'/app/inputs/seed4d/data/data_diverse_1600x900/static/'  
+SEED4D_DATASET_ROOT = '/app/felix/data/seed4d/data/data_diverse_1600x900_2poses_secogan2/static/'#'/app/inputs/seed4d/data/data_diverse_1600x900_2poses/static/' #'/app/inputs/seed4d/data/data_baseline/static/' #'/app/inputs/seed4d/data/data_diverse/static/'  # #'/app/inputs/seed4d/data/data_diverse_1600x900/static/'  
 assert SEED4D_DATASET_ROOT is not None, "Update the location of the SEED4D Dataset"
 
 LIDAR_DATASET_ROOT = '/app/new/seed4d/pseudo_lidar/' # Will be directory to save pseudo lidar 
@@ -114,9 +114,9 @@ class Dataset_SEED4D(Dataset):
             
             # Load night sample tokens from appropriate file
             if version == 'v1.0-trainval':
-                night_scenes_file = '/app/felix/code/Sim2Real/domain_adaptation/nuscene_night_scenes_felix/nuscenes_v1.0-trainval_night_scenes.txt'
+                night_scenes_file = '/app/felix/code/Sim2Real/domain_adaptation/nuscene_night_scenes_felix/data/nuscenes_v1.0-trainval_night_scenes.txt'
             else:
-                night_scenes_file = '/app/felix/code/Sim2Real/domain_adaptation/nuscene_night_scenes_felix/nuscenes_v1.0-test_night_scenes.txt'
+                night_scenes_file = '/app/felix/code/Sim2Real/domain_adaptation/nuscene_night_scenes_felix/data/nuscenes_v1.0-test_night_scenes.txt'
             
             # Read night sample tokens
             with open(night_scenes_file, 'r') as f:
@@ -197,8 +197,8 @@ class Dataset_SEED4D(Dataset):
             ###ego-exo training 
             elif self.cfg.experiment == 'ego-exo':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-                #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_train.json' for spawn_dir in self.spawn_dirs]
-                self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_train.json' for spawn_dir in self.spawn_dirs] #BEV modification
+                self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_train.json' for spawn_dir in self.spawn_dirs]
+                #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_train.json' for spawn_dir in self.spawn_dirs] #BEV modification
             ### ego-exo-mixed-domain training
             assert self.cfg.experiment is not None
             if self.cfg.experiment == 'ego-exo-mixed-domain':
@@ -219,8 +219,8 @@ class Dataset_SEED4D(Dataset):
             ###ego-exo training 
             elif self.cfg.experiment == 'ego-exo':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-                #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
-                self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' for spawn_dir in self.spawn_dirs] #BEV modification
+                self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+                #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' for spawn_dir in self.spawn_dirs] #BEV modification
             ### ego-exo-mixed-domain training
             assert self.cfg.experiment is not None
             if self.cfg.experiment == 'ego-exo-mixed-domain':
@@ -238,8 +238,8 @@ class Dataset_SEED4D(Dataset):
             ### ego-exo testing
             if self.cfg.experiment == 'ego-exo':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
-                #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
-                self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' for spawn_dir in self.spawn_dirs] #BEV modification
+                self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_test.json' for spawn_dir in self.spawn_dirs]
+                #self.output_images = [spawn_dir + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' for spawn_dir in self.spawn_dirs] #BEV modification
             ### ego-ego testing
             elif self.cfg.experiment == 'ego-ego':
                 self.input_images = [spawn_dir + '/nuscenes_invisible/transforms/transforms_ego.json' for spawn_dir in self.spawn_dirs]
@@ -671,8 +671,8 @@ class Dataset_SEED4D(Dataset):
                     # Context is handled separately with nuScenes token
                     #print(f"[DEBUG] Loading ego-exo-nuscenes target data for {example_id}")
                     
-                    #exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_train.json'
-                    exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' #changes for BEV
+                    exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_train.json'
+                    #exo_transforms = example_id + '/sphere_invisible/transforms/transforms_ego_BEV70-99_test.json' #changes for BEV
                     exo_image_paths, exo_intrinsics_matrices, exo_extrinsics_matrices = readPixelSplatCamera(
                         exo_transforms, resolution=self.view_sampler.cfg.output_target_resolution, 
                         near=self.cfg.z_near, far=self.cfg.z_far)
