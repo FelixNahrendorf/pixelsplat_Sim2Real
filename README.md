@@ -1,6 +1,6 @@
-# pixelSplat
-
-This is the code for **pixelSplat: 3D Gaussian Splats from Image Pairs for Scalable Generalizable 3D Reconstruction** by David Charatan, Sizhe Lester Li, Andrea Tagliasacchi, and Vincent Sitzmann.
+# pixelSplat_Sim2Real
+This is the code of the Extension of the pixelSplat model for performing Simulation-to-Reality zero-shot driving scene reconstruction. 
+Base: **pixelSplat: 3D Gaussian Splats from Image Pairs for Scalable Generalizable 3D Reconstruction** by David Charatan, Sizhe Lester Li, Andrea Tagliasacchi, and Vincent Sitzmann.
 
 Check out the [project website here](https://dcharatan.github.io/pixelsplat). We presented pixelSplat at CVPR 2024 in Seattle. You can find the presentation slides [here](https://drive.google.com/drive/folders/1HGUe9OcVXxstBMYwuTklGbC1LjDasXL8).
 
