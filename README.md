@@ -1,5 +1,7 @@
 # pixelSplat_Sim2Real
-This is the code of the extension of the pixelSplat model for performing Simulation-to-Reality zero-shot driving scene reconstruction. 
+This is the code of the extension of the pixelSplat model for performing Simulation-to-Reality zero-shot driving scene reconstruction. It was created during my Master Thesis work on "Real World Birds-Eye View Generation without Ground-Truth Supervision". Here is one example video showing what was achieved: https://youtu.be/XMQRXBRwNhI 
+More info on request.
+
 Base: **pixelSplat: 3D Gaussian Splats from Image Pairs for Scalable Generalizable 3D Reconstruction** by David Charatan, Sizhe Lester Li, Andrea Tagliasacchi, and Vincent Sitzmann.
 
 Check out the [project website here](https://dcharatan.github.io/pixelsplat). We presented pixelSplat at CVPR 2024 in Seattle. You can find the presentation slides [here](https://drive.google.com/drive/folders/1HGUe9OcVXxstBMYwuTklGbC1LjDasXL8).
