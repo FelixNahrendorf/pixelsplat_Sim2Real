@@ -1,5 +1,5 @@
 # pixelSplat_Sim2Real
-This is the code of the extension of the pixelSplat model for performing Simulation-to-Reality zero-shot driving scene reconstruction. It was created during my Master Thesis work on "Real World Birds-Eye View Generation without Ground-Truth Supervision". Here is one example [video](https://youtu.be/XMQRXBRwNhI ) showing what was achieved.
+This is the code of the extension of the pixelSplat model for performing Simulation-to-Reality zero-shot driving scene reconstruction. The model was trained on synthetic data ([SEED4D](https://seed4d.github.io) and modifications) only followed by zero-shot testing on NuScenes dataset. This work was part of my Master Thesis on "Real World Birds-Eye View Generation without Ground-Truth Supervision". Here is one example [video](https://youtu.be/u767DyfKZv8) showing what was achieved.
 
 More info on request.
 
