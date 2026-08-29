@@ -1,9 +1,14 @@
 # pixelSplat_Sim2Real
-This is the code of the extension of the pixelSplat model for performing Simulation-to-Reality zero-shot driving scene reconstruction. The model was trained on synthetic data ([SEED4D](https://seed4d.github.io) and modifications) only followed by zero-shot testing on NuScenes dataset. This work was part of my Master Thesis on "Real World Birds-Eye View Generation without Ground-Truth Supervision" at Technical University of Berlin, Germany. The key problem to solve was the generation of birds-eye views from six vehicle-outfacing cameras in absence of views from the top in real-time.  Here is one example [video](https://youtu.be/u767DyfKZv8) showing what was achieved.
+This is the code of the extension of the pixelSplat model for performing Simulation-to-Reality zero-shot driving scene reconstruction. The model was trained on synthetic data ([SEED4D](https://seed4d.github.io) and modifications) only followed by zero-shot testing on NuScenes dataset. This work was part of my Master Thesis on "Real World Birds-Eye View Generation without Ground-Truth Supervision" at Technical University of Berlin, Germany. The key problem to solve was the generation of birds-eye views from six vehicle-outfacing cameras in absence of views from the top in real-time.  
+
+https://github.com/user-attachments/assets/aa7161d3-1d54-4d65-b035-181f69836cb9
+
+Here is the full playlist of results [video]([https://youtu.be/u767DyfKZv8](https://www.youtube.com/playlist?list=PLk18_A-SM90UsgYBKz3rJtOYW03clkoG9)) showing what was achieved.
 
 More info on request.
 
-Base: **pixelSplat: 3D Gaussian Splats from Image Pairs for Scalable Generalizable 3D Reconstruction** by David Charatan, Sizhe Lester Li, Andrea Tagliasacchi, and Vincent Sitzmann.
+
+Base Repository: **pixelSplat: 3D Gaussian Splats from Image Pairs for Scalable Generalizable 3D Reconstruction** by David Charatan, Sizhe Lester Li, Andrea Tagliasacchi, and Vincent Sitzmann.
 
 Check out the [project website here](https://dcharatan.github.io/pixelsplat). We presented pixelSplat at CVPR 2024 in Seattle. You can find the presentation slides [here](https://drive.google.com/drive/folders/1HGUe9OcVXxstBMYwuTklGbC1LjDasXL8).
 
