@@ -1,10 +1,20 @@
 # pixelSplat_Sim2Real
-This is the code of the extension of the pixelSplat model for performing Simulation-to-Reality zero-shot driving scene reconstruction. The model was trained on synthetic data ([SEED4D](https://seed4d.github.io) and modifications) only followed by zero-shot testing on NuScenes dataset. This work was part of my Master Thesis on "Real World Birds-Eye View Generation without Ground-Truth Supervision" at Technical University of Berlin, Germany. The key problem to solve was the generation of birds-eye views from six vehicle-outfacing cameras in absence of views from the top in real-time.  
+This is the code of the extension of the pixelSplat model for performing Simulation-to-Reality zero-shot driving scene reconstruction. The model was trained on synthetic data ([SEED4D](https://seed4d.github.io) and modifications) only followed by zero-shot testing on NuScenes dataset. This work was part of my Master Thesis on "Real World Birds-Eye View Generation without Ground-Truth Supervision" at Technical University of Berlin, Germany (German Grade: 1.3). The key problem to solve was the generation of birds-eye views from six vehicle-outfacing cameras in absence of views from the top in real-time.
+
+In order to do that, the following parts were built to extend and modify the base pixelSplat model:
+
+- **Custom NuScenes & SEED4D dataloaders** — realigning camera coordinate frames from NuScenes convention to CARLA/SEED4D convention, normalizing intrinsics per sensor resolution, and resolving the coordinate-origin mismatch (global map coords vs. local scene-centered coords) that otherwise produces empty renderings.
+- **Ego-exo target sampling** — feeding six vehicle-outfacing ego cameras as context while using elevated SEED4D exo-views (and a focused high-altitude subset) as BEV reconstruction targets, since no ground-truth top-down views exist for NuScenes.
+- **Pseudo-depth supervision** — a custom depth loss consuming Depth-Anything-3 metric pseudo-depth maps to supervise reconstruction where real-world data is available.
+- **Mixed-domain training** — batching synthetic and real domains together so the encoder learns generalized, domain-invariant features.
+- **Domain-gap reduction via style transfer** — two domain-translation approaches applied to the synthetic SEED4D images to close the texture/appearance gap to real NuScenes imagery:
+  - **SecoGAN** ([paper](https://arxiv.org/abs/2105.08704)) — GAN-based semantically-consistent sim-to-real translation, suppressing per-camera lighting/texture inconsistencies.
+  - **FLUX.2** ([Black Forest Labs](https://github.com/black-forest-labs/flux)) — diffusion-based translation, conditioning the FLUX.2 [klein] model on each synthetic image to produce a photorealistic equivalent.
+- **Analysis & visualization tooling** — domain-gap metrics (FID, KID, LPIPS, PSNR, SSIM), day/night filtering, camera-pose visualization, and GIF/MP4 output generation for the six surround cameras alongside POV, depth, and BEV renders.
 
 https://github.com/user-attachments/assets/aa7161d3-1d54-4d65-b035-181f69836cb9
 
-Here is the full playlist of results [video]([https://youtu.be/u767DyfKZv8](https://www.youtube.com/playlist?list=PLk18_A-SM90UsgYBKz3rJtOYW03clkoG9)) showing what was achieved.
-
+Here is the full playlist of results [video](https://www.youtube.com/playlist?list=PLk18_A-SM90UsgYBKz3rJtOYW03clkoG9) showing what was achieved.
 More info on request.
 
 
